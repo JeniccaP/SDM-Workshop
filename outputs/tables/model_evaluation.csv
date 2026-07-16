@@ -1,0 +1,7 @@
+full.name,PA,run,algo,metric.eval,cutoff,sensitivity,specificity,calibration,validation,evaluation
+Aedes.aegypti_PA1_RUN1_GLM,PA1,RUN1,GLM,TSS,367,86.719,56,0.429,0.36,NA
+Aedes.aegypti_PA1_RUN1_GLM,PA1,RUN1,GLM,AUCroc,502.5,74.844,65.875,0.756,0.713,NA
+Aedes.aegypti_PA1_allRun_GLM,PA1,allRun,GLM,TSS,377,85.875,55.4,0.413,NA,NA
+Aedes.aegypti_PA1_allRun_GLM,PA1,allRun,GLM,AUCroc,489.5,75.375,62.9,0.75,NA,NA
+Aedes.aegypti_allData_allRun_GLM,allData,allRun,GLM,TSS,377,85.875,55.4,0.413,NA,NA
+Aedes.aegypti_allData_allRun_GLM,allData,allRun,GLM,AUCroc,489.5,75.375,62.9,0.75,NA,NA

@@ -1,0 +1,13 @@
+full.name,PA,run,algo,expl.var,rand,var.imp
+Aedes.aegypti_PA1_RUN1_GLM,PA1,RUN1,GLM,bio01_annual_mean_temperature,1,0.07846600000000004
+Aedes.aegypti_PA1_RUN1_GLM,PA1,RUN1,GLM,bio04_temperature_seasonality,1,0.47662800000000005
+Aedes.aegypti_PA1_RUN1_GLM,PA1,RUN1,GLM,bio12_annual_precipitation,1,0.24592099999999995
+Aedes.aegypti_PA1_RUN1_GLM,PA1,RUN1,GLM,bio15_precipitation_seasonality,1,0.05714600000000003
+Aedes.aegypti_PA1_allRun_GLM,PA1,allRun,GLM,bio01_annual_mean_temperature,1,0.046121999999999996
+Aedes.aegypti_PA1_allRun_GLM,PA1,allRun,GLM,bio04_temperature_seasonality,1,0.44951399999999997
+Aedes.aegypti_PA1_allRun_GLM,PA1,allRun,GLM,bio12_annual_precipitation,1,0.217692
+Aedes.aegypti_PA1_allRun_GLM,PA1,allRun,GLM,bio15_precipitation_seasonality,1,0.09549799999999997
+Aedes.aegypti_allData_allRun_GLM,allData,allRun,GLM,bio01_annual_mean_temperature,1,0.04784699999999997
+Aedes.aegypti_allData_allRun_GLM,allData,allRun,GLM,bio04_temperature_seasonality,1,0.44195300000000004
+Aedes.aegypti_allData_allRun_GLM,allData,allRun,GLM,bio12_annual_precipitation,1,0.204357
+Aedes.aegypti_allData_allRun_GLM,allData,allRun,GLM,bio15_precipitation_seasonality,1,0.10153900000000005

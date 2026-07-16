@@ -1,0 +1,334 @@
+```r
+knitr::opts_chunk$set(
+  eval = FALSE,
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE
+)
+```
+
+# Welcome
+
+In this workshop, we will build a first species distribution model for *Aedes aegypti*, one of the major mosquito vectors associated with dengue transmission.
+
+We will focus on Brazil because it gives us a real public health context, a national-scale map, and enough occurrence data for a meaningful teaching example.
+
+By the end, you should be able to:
+
+- open an RStudio project;
+- download occurrence records from GBIF;
+- clean and inspect coordinate data;
+- load environmental predictors;
+- run a simple model using `biomod2`;
+- map predicted environmental suitability;
+- explain why suitability is not the same as dengue risk.
+
+The workshop is designed for people who are relatively new to R. Please run code slowly, one section at a time.
+
+# What Are We Modeling?
+
+Species distribution models, often called SDMs, estimate where environmental conditions are suitable for a species.
+
+For dengue, this can be useful because the spatial distribution of vectors such as *Aedes aegypti* helps shape where transmission could occur. But this is only one piece of the puzzle.
+
+An SDM for *Aedes aegypti* does **not** directly model:
+
+- human dengue cases;
+- mosquito abundance;
+- human movement;
+- immunity;
+- vector control;
+- health system reporting.
+
+It estimates environmental suitability for the vector based on the data and predictors we provide.
+
+# Open The Project
+
+Open the file:
+
+```text
+SDM_dengue_Brazil_workshop.Rproj
+```
+
+This tells RStudio that the workshop folder is the working directory. You should not need to use `setwd()`.
+
+Run:
+
+```r
+getwd()
+list.files()
+```
+
+You should see folders such as `scripts`, `data`, and `outputs`.
+
+# Check Setup
+
+Open and run:
+
+```text
+scripts/01_setup_check.R
+```
+
+Or run:
+
+```r
+source("scripts/01_setup_check.R")
+```
+
+If any package is missing, run:
+
+```r
+source("scripts/00_install_packages.R")
+```
+
+# Download Occurrence Data From GBIF
+
+GBIF is the Global Biodiversity Information Facility. It provides public biodiversity occurrence records from museums, surveys, citizen science, and other sources.
+
+Today, our target is:
+
+```r
+target_species <- "Aedes aegypti"
+target_country <- "BR"
+```
+
+Open the main workshop script:
+
+```text
+scripts/workshop_aedes_aegypti_brazil_sdm.R
+```
+
+Find **Section 1** and **Section 2**, then run them line by line.
+
+The important idea is:
+
+```r
+gbif_count <- rgbif::occ_count(
+  scientificName = target_species,
+  country = target_country,
+  hasCoordinate = TRUE
+)
+```
+
+Then we download the records:
+
+```r
+gbif_download <- rgbif::occ_search(
+  scientificName = target_species,
+  country = target_country,
+  hasCoordinate = TRUE,
+  limit = min(gbif_count, 10000)
+)
+
+occurrences_raw <- gbif_download$data
+```
+
+## If GBIF Is Slow
+
+Use the cached backup by keeping:
+
+```r
+download_from_gbif <- FALSE
+```
+
+The backup file is:
+
+```text
+data/occurrences/aedes_aegypti_brazil_clean_backup.csv
+```
+
+# Clean Occurrence Records
+
+GBIF data are powerful, but they are not perfect. Records can have missing coordinates, duplicated points, or coordinates outside the study region.
+
+Stay in the same script:
+
+```text
+scripts/workshop_aedes_aegypti_brazil_sdm.R
+```
+
+Find **Section 3: Clean and map occurrence records**.
+
+The cleaning steps remove:
+
+- missing coordinates;
+- duplicate coordinates;
+- coordinates outside Brazil's broad bounding box;
+- zero-zero coordinates.
+
+We also keep a workshop-sized sample so the model runs quickly.
+
+```r
+max_points <- 1000
+```
+
+This is not a magic number. It is a teaching choice.
+
+## Pause And Think
+
+Look at the occurrence map.
+
+Ask yourself:
+
+- Are records evenly spread across Brazil?
+- Are there clusters near cities or research centers?
+- Could this reflect sampling effort rather than mosquito ecology?
+
+# Load Environmental Predictors
+
+The model needs environmental data for both presence locations and the wider study area.
+
+For the live workshop, we use cached WorldClim bioclimatic predictors cropped to Brazil.
+
+Stay in the same script:
+
+```text
+scripts/workshop_aedes_aegypti_brazil_sdm.R
+```
+
+Find **Section 4: Load environmental predictors**.
+
+The predictors are:
+
+- annual mean temperature;
+- temperature seasonality;
+- annual precipitation;
+- precipitation seasonality.
+
+These predictors are not the only possible choices. They are a simple, teachable starting point.
+
+# Run A First SDM With biomod2
+
+Now we fit the model.
+
+Stay in the same script:
+
+```text
+scripts/workshop_aedes_aegypti_brazil_sdm.R
+```
+
+Find **Section 5: Format data and run a first biomod2 model**. Run it slowly.
+
+The model needs:
+
+```r
+species_xy <- as.matrix(occurrences[, c("decimalLongitude", "decimalLatitude")])
+species_presence <- rep(1, nrow(occurrences))
+```
+
+Because we only have presence records, `biomod2` creates pseudo-absence points.
+
+```r
+formatted_data <- BIOMOD_FormatingData(
+  resp.name = "Aedes_aegypti",
+  resp.var = species_presence,
+  resp.xy = species_xy,
+  expl.var = predictors,
+  PA.nb.rep = 1,
+  PA.nb.absences = 1000,
+  PA.strategy = "random",
+  filter.raster = TRUE,
+  seed.val = 42
+)
+```
+
+We use a GLM in the live session because it is fast and easier to explain.
+
+```r
+model_out <- BIOMOD_Modeling(
+  bm.format = formatted_data,
+  modeling.id = "first_sdm",
+  models = c("GLM"),
+  CV.strategy = "random",
+  CV.nb.rep = 1,
+  CV.perc = 0.8,
+  metric.eval = c("TSS", "AUCroc"),
+  var.import = 1,
+  nb.cpu = 1,
+  seed.val = 42
+)
+```
+
+## What Are Pseudo-Absences?
+
+Occurrence data tell us where the species was recorded. They usually do not tell us where the species was truly absent.
+
+Pseudo-absences are background locations used to help the model compare known presence sites with available environmental conditions.
+
+This is useful, but it is also a modeling choice. Different pseudo-absence strategies can change the result.
+
+# Project Suitability Across Brazil
+
+After fitting the model, we predict suitability across the whole study area:
+
+```r
+projection_out <- BIOMOD_Projection(
+  bm.mod = model_out,
+  proj.name = "Brazil_current",
+  new.env = predictors,
+  models.chosen = "all"
+)
+```
+
+The output is saved as:
+
+```text
+outputs/maps/aedes_aegypti_brazil_suitability.tif
+```
+
+# Map And Interpret
+
+Stay in the same script:
+
+```text
+scripts/workshop_aedes_aegypti_brazil_sdm.R
+```
+
+Find **Section 6: Project and map suitability across Brazil** and **Section 7: Interpret the model output**.
+
+This creates:
+
+```text
+outputs/maps/aedes_aegypti_brazil_suitability.png
+```
+
+## Interpretation Questions
+
+Discuss:
+
+- Where does the model predict high suitability?
+- Does that match what you know about *Aedes aegypti*?
+- Where might the map be influenced by sampling bias?
+- What does the model miss?
+- What would you need before using this in a public health decision?
+
+# Adapting The Workflow
+
+To model another species, change:
+
+```r
+target_species <- "Aedes albopictus"
+target_country <- "BR"
+```
+
+Or choose another country code:
+
+```r
+target_country <- "ZA"
+```
+
+You would also need environmental predictors that cover the new study area.
+
+# What To Remember
+
+An SDM is a useful way to connect occurrence data and environmental predictors.
+
+For infectious disease work, SDMs are most powerful when combined with:
+
+- vector biology;
+- surveillance data;
+- human population data;
+- uncertainty checks;
+- local epidemiological knowledge.
+
+The map is a starting point for questions, not the final answer.

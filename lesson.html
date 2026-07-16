@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mapping Dengue Vector Suitability In Brazil</title>
+<style>
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.6;color:#1f2933;background:#f7faf9;}
+main{max-width:920px;margin:0 auto;padding:40px 24px 72px;background:#fff;}
+h1{font-size:42px;line-height:1.12;margin:0 0 16px;color:#0b3d3a;}
+h2{font-size:28px;margin-top:44px;color:#0b3d3a;border-top:1px solid #d8e3df;padding-top:26px;}
+h3{font-size:21px;margin-top:30px;color:#155e56;}
+p,li{font-size:17px;}
+code{background:#eef5f2;border-radius:4px;padding:2px 5px;font-size:0.95em;}
+pre{background:#10231f;color:#ecfdf5;border-radius:8px;padding:18px;overflow:auto;}
+pre code{background:transparent;color:inherit;padding:0;}
+blockquote{border-left:5px solid #f2b84b;margin-left:0;padding-left:18px;color:#374151;}
+a{color:#0f766e;}
+ul{padding-left:24px;}
+.hero{background:#d9f2ea;padding:36px 24px;margin:-40px -24px 32px;border-bottom:5px solid #f2b84b;}
+.hero p{max-width:760px;font-size:19px;}
+</style>
+</head>
+<body>
+<main>
+<section class="hero"><h1>Mapping Dengue Vector Suitability In Brazil</h1><p>A beginner-friendly species distribution modeling workshop in R, using <em>Aedes aegypti</em>, GBIF occurrence records, WorldClim predictors, and biomod2.</p></section>
+<pre><code class="language-r">knitr::opts_chunk$set(
+  eval = FALSE,
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE
+)
+</code></pre>
+<h1>Welcome</h1>
+<p>In this workshop, we will build a first species distribution model for <em>Aedes aegypti</em>, one of the major mosquito vectors associated with dengue transmission.</p>
+<p>We will focus on Brazil because it gives us a real public health context, a national-scale map, and enough occurrence data for a meaningful teaching example.</p>
+<p>By the end, you should be able to:</p>
+<ul>
+<li>open an RStudio project;</li>
+<li>download occurrence records from GBIF;</li>
+<li>clean and inspect coordinate data;</li>
+<li>load environmental predictors;</li>
+<li>run a simple model using <code>biomod2</code>;</li>
+<li>map predicted environmental suitability;</li>
+<li>explain why suitability is not the same as dengue risk.</li>
+</ul>
+<p>The workshop is designed for people who are relatively new to R. Please run code slowly, one section at a time.</p>
+<h1>What Are We Modeling?</h1>
+<p>Species distribution models, often called SDMs, estimate where environmental conditions are suitable for a species.</p>
+<p>For dengue, this can be useful because the spatial distribution of vectors such as <em>Aedes aegypti</em> helps shape where transmission could occur. But this is only one piece of the puzzle.</p>
+<p>An SDM for <em>Aedes aegypti</em> does <strong>not</strong> directly model:</p>
+<ul>
+<li>human dengue cases;</li>
+<li>mosquito abundance;</li>
+<li>human movement;</li>
+<li>immunity;</li>
+<li>vector control;</li>
+<li>health system reporting.</li>
+</ul>
+<p>It estimates environmental suitability for the vector based on the data and predictors we provide.</p>
+<h1>Open The Project</h1>
+<p>Open the file:</p>
+<pre><code class="language-text">SDM_dengue_Brazil_workshop.Rproj
+</code></pre>
+<p>This tells RStudio that the workshop folder is the working directory. You should not need to use <code>setwd()</code>.</p>
+<p>Run:</p>
+<pre><code class="language-r">getwd()
+list.files()
+</code></pre>
+<p>You should see folders such as <code>scripts</code>, <code>data</code>, and <code>outputs</code>.</p>
+<h1>Check Setup</h1>
+<p>Open and run:</p>
+<pre><code class="language-text">scripts/01_setup_check.R
+</code></pre>
+<p>Or run:</p>
+<pre><code class="language-r">source(&quot;scripts/01_setup_check.R&quot;)
+</code></pre>
+<p>If any package is missing, run:</p>
+<pre><code class="language-r">source(&quot;scripts/00_install_packages.R&quot;)
+</code></pre>
+<h1>Download Occurrence Data From GBIF</h1>
+<p>GBIF is the Global Biodiversity Information Facility. It provides public biodiversity occurrence records from museums, surveys, citizen science, and other sources.</p>
+<p>Today, our target is:</p>
+<pre><code class="language-r">target_species &lt;- &quot;Aedes aegypti&quot;
+target_country &lt;- &quot;BR&quot;
+</code></pre>
+<p>Open the main workshop script:</p>
+<pre><code class="language-text">scripts/workshop_aedes_aegypti_brazil_sdm.R
+</code></pre>
+<p>Find <strong>Section 1</strong> and <strong>Section 2</strong>, then run them line by line.</p>
+<p>The important idea is:</p>
+<pre><code class="language-r">gbif_count &lt;- rgbif::occ_count(
+  scientificName = target_species,
+  country = target_country,
+  hasCoordinate = TRUE
+)
+</code></pre>
+<p>Then we download the records:</p>
+<pre><code class="language-r">gbif_download &lt;- rgbif::occ_search(
+  scientificName = target_species,
+  country = target_country,
+  hasCoordinate = TRUE,
+  limit = min(gbif_count, 10000)
+)
+
+occurrences_raw &lt;- gbif_download$data
+</code></pre>
+<h2>If GBIF Is Slow</h2>
+<p>Use the cached backup by keeping:</p>
+<pre><code class="language-r">download_from_gbif &lt;- FALSE
+</code></pre>
+<p>The backup file is:</p>
+<pre><code class="language-text">data/occurrences/aedes_aegypti_brazil_clean_backup.csv
+</code></pre>
+<h1>Clean Occurrence Records</h1>
+<p>GBIF data are powerful, but they are not perfect. Records can have missing coordinates, duplicated points, or coordinates outside the study region.</p>
+<p>Stay in the same script:</p>
+<pre><code class="language-text">scripts/workshop_aedes_aegypti_brazil_sdm.R
+</code></pre>
+<p>Find <strong>Section 3: Clean and map occurrence records</strong>.</p>
+<p>The cleaning steps remove:</p>
+<ul>
+<li>missing coordinates;</li>
+<li>duplicate coordinates;</li>
+<li>coordinates outside Brazil's broad bounding box;</li>
+<li>zero-zero coordinates.</li>
+</ul>
+<p>We also keep a workshop-sized sample so the model runs quickly.</p>
+<pre><code class="language-r">max_points &lt;- 1000
+</code></pre>
+<p>This is not a magic number. It is a teaching choice.</p>
+<h2>Pause And Think</h2>
+<p>Look at the occurrence map.</p>
+<p>Ask yourself:</p>
+<ul>
+<li>Are records evenly spread across Brazil?</li>
+<li>Are there clusters near cities or research centers?</li>
+<li>Could this reflect sampling effort rather than mosquito ecology?</li>
+</ul>
+<h1>Load Environmental Predictors</h1>
+<p>The model needs environmental data for both presence locations and the wider study area.</p>
+<p>For the live workshop, we use cached WorldClim bioclimatic predictors cropped to Brazil.</p>
+<p>Stay in the same script:</p>
+<pre><code class="language-text">scripts/workshop_aedes_aegypti_brazil_sdm.R
+</code></pre>
+<p>Find <strong>Section 4: Load environmental predictors</strong>.</p>
+<p>The predictors are:</p>
+<ul>
+<li>annual mean temperature;</li>
+<li>temperature seasonality;</li>
+<li>annual precipitation;</li>
+<li>precipitation seasonality.</li>
+</ul>
+<p>These predictors are not the only possible choices. They are a simple, teachable starting point.</p>
+<h1>Run A First SDM With biomod2</h1>
+<p>Now we fit the model.</p>
+<p>Stay in the same script:</p>
+<pre><code class="language-text">scripts/workshop_aedes_aegypti_brazil_sdm.R
+</code></pre>
+<p>Find <strong>Section 5: Format data and run a first biomod2 model</strong>. Run it slowly.</p>
+<p>The model needs:</p>
+<pre><code class="language-r">species_xy &lt;- as.matrix(occurrences[, c(&quot;decimalLongitude&quot;, &quot;decimalLatitude&quot;)])
+species_presence &lt;- rep(1, nrow(occurrences))
+</code></pre>
+<p>Because we only have presence records, <code>biomod2</code> creates pseudo-absence points.</p>
+<pre><code class="language-r">formatted_data &lt;- BIOMOD_FormatingData(
+  resp.name = &quot;Aedes_aegypti&quot;,
+  resp.var = species_presence,
+  resp.xy = species_xy,
+  expl.var = predictors,
+  PA.nb.rep = 1,
+  PA.nb.absences = 1000,
+  PA.strategy = &quot;random&quot;,
+  filter.raster = TRUE,
+  seed.val = 42
+)
+</code></pre>
+<p>We use a GLM in the live session because it is fast and easier to explain.</p>
+<pre><code class="language-r">model_out &lt;- BIOMOD_Modeling(
+  bm.format = formatted_data,
+  modeling.id = &quot;first_sdm&quot;,
+  models = c(&quot;GLM&quot;),
+  CV.strategy = &quot;random&quot;,
+  CV.nb.rep = 1,
+  CV.perc = 0.8,
+  metric.eval = c(&quot;TSS&quot;, &quot;AUCroc&quot;),
+  var.import = 1,
+  nb.cpu = 1,
+  seed.val = 42
+)
+</code></pre>
+<h2>What Are Pseudo-Absences?</h2>
+<p>Occurrence data tell us where the species was recorded. They usually do not tell us where the species was truly absent.</p>
+<p>Pseudo-absences are background locations used to help the model compare known presence sites with available environmental conditions.</p>
+<p>This is useful, but it is also a modeling choice. Different pseudo-absence strategies can change the result.</p>
+<h1>Project Suitability Across Brazil</h1>
+<p>After fitting the model, we predict suitability across the whole study area:</p>
+<pre><code class="language-r">projection_out &lt;- BIOMOD_Projection(
+  bm.mod = model_out,
+  proj.name = &quot;Brazil_current&quot;,
+  new.env = predictors,
+  models.chosen = &quot;all&quot;
+)
+</code></pre>
+<p>The output is saved as:</p>
+<pre><code class="language-text">outputs/maps/aedes_aegypti_brazil_suitability.tif
+</code></pre>
+<h1>Map And Interpret</h1>
+<p>Stay in the same script:</p>
+<pre><code class="language-text">scripts/workshop_aedes_aegypti_brazil_sdm.R
+</code></pre>
+<p>Find <strong>Section 6: Project and map suitability across Brazil</strong> and <strong>Section 7: Interpret the model output</strong>.</p>
+<p>This creates:</p>
+<pre><code class="language-text">outputs/maps/aedes_aegypti_brazil_suitability.png
+</code></pre>
+<h2>Interpretation Questions</h2>
+<p>Discuss:</p>
+<ul>
+<li>Where does the model predict high suitability?</li>
+<li>Does that match what you know about <em>Aedes aegypti</em>?</li>
+<li>Where might the map be influenced by sampling bias?</li>
+<li>What does the model miss?</li>
+<li>What would you need before using this in a public health decision?</li>
+</ul>
+<h1>Adapting The Workflow</h1>
+<p>To model another species, change:</p>
+<pre><code class="language-r">target_species &lt;- &quot;Aedes albopictus&quot;
+target_country &lt;- &quot;BR&quot;
+</code></pre>
+<p>Or choose another country code:</p>
+<pre><code class="language-r">target_country &lt;- &quot;ZA&quot;
+</code></pre>
+<p>You would also need environmental predictors that cover the new study area.</p>
+<h1>What To Remember</h1>
+<p>An SDM is a useful way to connect occurrence data and environmental predictors.</p>
+<p>For infectious disease work, SDMs are most powerful when combined with:</p>
+<ul>
+<li>vector biology;</li>
+<li>surveillance data;</li>
+<li>human population data;</li>
+<li>uncertainty checks;</li>
+<li>local epidemiological knowledge.</li>
+</ul>
+<p>The map is a starting point for questions, not the final answer.</p>
+
+</main>
+</body>
+</html>
+

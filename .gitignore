@@ -1,0 +1,17 @@
+.DS_Store
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+
+# biomod2 writes intermediate model folders here when scripts are run.
+Aedes.aegypti/
+
+# Keep shareable outputs, but avoid committing heavier local model objects.
+outputs/models/
+
+# Temporary or accidental plot files from non-interactive R sessions.
+Rplots.pdf
+
+# PowerPoint inspection files created during deck QA.
+slides/*.inspect.ndjson
