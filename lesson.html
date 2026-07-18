@@ -40,7 +40,8 @@ ul{padding-left:24px;}
 <li>download occurrence records from GBIF;</li>
 <li>clean and inspect coordinate data;</li>
 <li>load environmental predictors;</li>
-<li>run a simple model using <code>biomod2</code>;</li>
+<li>run GLM, GBM, and Random Forest models using <code>biomod2</code>;</li>
+<li>build simple ensemble models;</li>
 <li>map predicted environmental suitability;</li>
 <li>explain why suitability is not the same as dengue risk.</li>
 </ul>
@@ -152,8 +153,8 @@ occurrences_raw &lt;- gbif_download$data
 <li>precipitation seasonality.</li>
 </ul>
 <p>These predictors are not the only possible choices. They are a simple, teachable starting point.</p>
-<h1>Run A First SDM With biomod2</h1>
-<p>Now we fit the model.</p>
+<h1>Run First SDMs With biomod2</h1>
+<p>Now we fit the models.</p>
 <p>Stay in the same script:</p>
 <pre><code class="language-text">scripts/workshop_aedes_aegypti_brazil_sdm.R
 </code></pre>
@@ -175,14 +176,30 @@ species_presence &lt;- rep(1, nrow(occurrences))
   seed.val = 42
 )
 </code></pre>
-<p>We use a GLM in the live session because it is fast and easier to explain.</p>
-<pre><code class="language-r">model_out &lt;- BIOMOD_Modeling(
+<p>We run three example algorithms:</p>
+<ul>
+<li>GLM: Generalized Linear Model</li>
+<li>GBM: Generalized Boosting Model, also called boosted regression trees</li>
+<li>RF: Random Forest</li>
+</ul>
+<p>The script also includes an options block using <code>biomod2::bm_ModelingOptions()</code>. We keep the live run on biomod2's <code>bigboss</code> defaults, but the script shows where you would change individual algorithm parameters later.</p>
+<pre><code class="language-r">models_to_run &lt;- c(&quot;GLM&quot;, &quot;GBM&quot;, &quot;RF&quot;)
+
+modeling_options &lt;- biomod2::bm_ModelingOptions(
+  data.type = &quot;binary&quot;,
+  models = models_to_run,
+  strategy = &quot;bigboss&quot;,
+  bm.format = formatted_data
+)
+
+model_out &lt;- biomod2::BIOMOD_Modeling(
   bm.format = formatted_data,
   modeling.id = &quot;first_sdm&quot;,
-  models = c(&quot;GLM&quot;),
+  models = models_to_run,
   CV.strategy = &quot;random&quot;,
   CV.nb.rep = 1,
   CV.perc = 0.8,
+  OPT.strategy = &quot;bigboss&quot;,
   metric.eval = c(&quot;TSS&quot;, &quot;AUCroc&quot;),
   var.import = 1,
   nb.cpu = 1,
@@ -193,25 +210,51 @@ species_presence &lt;- rep(1, nrow(occurrences))
 <p>Occurrence data tell us where the species was recorded. They usually do not tell us where the species was truly absent.</p>
 <p>Pseudo-absences are background locations used to help the model compare known presence sites with available environmental conditions.</p>
 <p>This is useful, but it is also a modeling choice. Different pseudo-absence strategies can change the result.</p>
+<h1>Build Ensemble Models</h1>
+<p>Ensemble models combine predictions from the individual models.</p>
+<p>In the workshop script, we build two simple ensemble examples:</p>
+<ul>
+<li><code>EMmean</code>: average prediction across selected models</li>
+<li><code>EMwmean</code>: weighted average, where better-performing models get more weight</li>
+</ul>
+<p>The key function is:</p>
+<pre><code class="language-r">ensemble_out &lt;- biomod2::BIOMOD_EnsembleModeling(
+  bm.mod = model_out,
+  models.chosen = &quot;all&quot;,
+  em.by = &quot;all&quot;,
+  em.algo = c(&quot;EMmean&quot;, &quot;EMwmean&quot;),
+  metric.select = &quot;all&quot;,
+  metric.eval = c(&quot;TSS&quot;, &quot;AUCroc&quot;),
+  var.import = 1
+)
+</code></pre>
 <h1>Project Suitability Across Brazil</h1>
-<p>After fitting the model, we predict suitability across the whole study area:</p>
-<pre><code class="language-r">projection_out &lt;- BIOMOD_Projection(
+<p>After fitting the individual and ensemble models, we predict suitability across the whole study area:</p>
+<pre><code class="language-r">projection_out &lt;- biomod2::BIOMOD_Projection(
   bm.mod = model_out,
   proj.name = &quot;Brazil_current&quot;,
   new.env = predictors,
   models.chosen = &quot;all&quot;
 )
+
+ensemble_projection_out &lt;- biomod2::BIOMOD_EnsembleForecasting(
+  bm.em = ensemble_out,
+  bm.proj = projection_out,
+  models.chosen = &quot;all&quot;
+)
 </code></pre>
-<p>The output is saved as:</p>
+<p>The outputs are saved as:</p>
 <pre><code class="language-text">outputs/maps/aedes_aegypti_brazil_suitability.tif
+outputs/maps/aedes_aegypti_brazil_ensemble_suitability.tif
 </code></pre>
 <h1>Map And Interpret</h1>
 <p>Stay in the same script:</p>
 <pre><code class="language-text">scripts/workshop_aedes_aegypti_brazil_sdm.R
 </code></pre>
-<p>Find <strong>Section 6: Project and map suitability across Brazil</strong> and <strong>Section 7: Interpret the model output</strong>.</p>
+<p>Find <strong>Section 7: Project and map suitability across Brazil</strong> and <strong>Section 8: Interpret the model output</strong>.</p>
 <p>This creates:</p>
 <pre><code class="language-text">outputs/maps/aedes_aegypti_brazil_suitability.png
+outputs/maps/aedes_aegypti_brazil_ensemble_suitability.png
 </code></pre>
 <h2>Interpretation Questions</h2>
 <p>Discuss:</p>

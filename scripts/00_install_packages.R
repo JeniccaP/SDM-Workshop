@@ -5,6 +5,7 @@
 
 cran_packages <- c(
   "biomod2",
+  "gbm",
   "dplyr",
   "ggplot2",
   "readr",

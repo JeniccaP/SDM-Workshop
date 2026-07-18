@@ -2,7 +2,7 @@
 
 This repository contains a beginner-friendly 90-minute workshop on using species distribution models in R for infectious disease applications.
 
-The practical example models environmental suitability for *Aedes aegypti*, a dengue vector, across Brazil using GBIF occurrence records, WorldClim bioclimatic predictors, and `biomod2`.
+The practical example models environmental suitability for *Aedes aegypti*, a dengue vector, across Brazil using GBIF occurrence records, WorldClim bioclimatic predictors, and `biomod2`. The workflow runs GLM, GBM, and Random Forest examples, then builds simple ensemble models.
 
 ## Start Here
 
@@ -46,6 +46,8 @@ terra::rast()
 sf::st_read()
 ggplot2::ggplot()
 biomod2::BIOMOD_Modeling()
+biomod2::bm_ModelingOptions()
+biomod2::BIOMOD_EnsembleModeling()
 ```
 
 ## Data

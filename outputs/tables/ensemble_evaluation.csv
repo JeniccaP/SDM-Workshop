@@ -1,0 +1,9 @@
+full.name,merged.by.PA,merged.by.run,merged.by.algo,filtered.by,algo,metric.eval,cutoff,sensitivity,specificity,calibration,validation,evaluation
+Aedes.aegypti_EMmeanByTSS_mergedData_mergedRun_mergedAlgo,mergedData,mergedRun,mergedAlgo,TSS,EMmean,TSS,541,80.125,86.8,0.672,NA,NA
+Aedes.aegypti_EMmeanByTSS_mergedData_mergedRun_mergedAlgo,mergedData,mergedRun,mergedAlgo,TSS,EMmean,AUCroc,534.5,81.375,85.8,0.912,NA,NA
+Aedes.aegypti_EMwmeanByTSS_mergedData_mergedRun_mergedAlgo,mergedData,mergedRun,mergedAlgo,TSS,EMwmean,TSS,542,79.75,86.6,0.663,NA,NA
+Aedes.aegypti_EMwmeanByTSS_mergedData_mergedRun_mergedAlgo,mergedData,mergedRun,mergedAlgo,TSS,EMwmean,AUCroc,522.5,82.5,83.8,0.909,NA,NA
+Aedes.aegypti_EMmeanByAUCroc_mergedData_mergedRun_mergedAlgo,mergedData,mergedRun,mergedAlgo,AUCroc,EMmean,TSS,541,80.125,86.8,0.672,NA,NA
+Aedes.aegypti_EMmeanByAUCroc_mergedData_mergedRun_mergedAlgo,mergedData,mergedRun,mergedAlgo,AUCroc,EMmean,AUCroc,534.5,81.375,85.8,0.912,NA,NA
+Aedes.aegypti_EMwmeanByAUCroc_mergedData_mergedRun_mergedAlgo,mergedData,mergedRun,mergedAlgo,AUCroc,EMwmean,TSS,541,80.125,86.9,0.672,NA,NA
+Aedes.aegypti_EMwmeanByAUCroc_mergedData_mergedRun_mergedAlgo,mergedData,mergedRun,mergedAlgo,AUCroc,EMwmean,AUCroc,520.5,82.875,84,0.912,NA,NA

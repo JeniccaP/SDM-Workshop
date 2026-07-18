@@ -30,7 +30,8 @@ By the end, you should be able to:
 - download occurrence records from GBIF;
 - clean and inspect coordinate data;
 - load environmental predictors;
-- run a simple model using `biomod2`;
+- run GLM, GBM, and Random Forest models using `biomod2`;
+- build simple ensemble models;
 - map predicted environmental suitability;
 - explain why suitability is not the same as dengue risk.
 
@@ -208,9 +209,9 @@ The predictors are:
 
 These predictors are not the only possible choices. They are a simple, teachable starting point.
 
-# Run A First SDM With biomod2
+# Run First SDMs With biomod2
 
-Now we fit the model.
+Now we fit the models.
 
 Stay in the same script:
 
@@ -243,16 +244,32 @@ formatted_data <- BIOMOD_FormatingData(
 )
 ```
 
-We use a GLM in the live session because it is fast and easier to explain.
+We run three example algorithms:
+
+- GLM: Generalized Linear Model
+- GBM: Generalized Boosting Model, also called boosted regression trees
+- RF: Random Forest
+
+The script also includes an options block using `biomod2::bm_ModelingOptions()`. We keep the live run on biomod2's `bigboss` defaults, but the script shows where you would change individual algorithm parameters later.
 
 ```{r}
-model_out <- BIOMOD_Modeling(
+models_to_run <- c("GLM", "GBM", "RF")
+
+modeling_options <- biomod2::bm_ModelingOptions(
+  data.type = "binary",
+  models = models_to_run,
+  strategy = "bigboss",
+  bm.format = formatted_data
+)
+
+model_out <- biomod2::BIOMOD_Modeling(
   bm.format = formatted_data,
   modeling.id = "first_sdm",
-  models = c("GLM"),
+  models = models_to_run,
   CV.strategy = "random",
   CV.nb.rep = 1,
   CV.perc = 0.8,
+  OPT.strategy = "bigboss",
   metric.eval = c("TSS", "AUCroc"),
   var.import = 1,
   nb.cpu = 1,
@@ -268,23 +285,53 @@ Pseudo-absences are background locations used to help the model compare known pr
 
 This is useful, but it is also a modeling choice. Different pseudo-absence strategies can change the result.
 
-# Project Suitability Across Brazil
+# Build Ensemble Models
 
-After fitting the model, we predict suitability across the whole study area:
+Ensemble models combine predictions from the individual models.
+
+In the workshop script, we build two simple ensemble examples:
+
+- `EMmean`: average prediction across selected models
+- `EMwmean`: weighted average, where better-performing models get more weight
+
+The key function is:
 
 ```{r}
-projection_out <- BIOMOD_Projection(
+ensemble_out <- biomod2::BIOMOD_EnsembleModeling(
+  bm.mod = model_out,
+  models.chosen = "all",
+  em.by = "all",
+  em.algo = c("EMmean", "EMwmean"),
+  metric.select = "all",
+  metric.eval = c("TSS", "AUCroc"),
+  var.import = 1
+)
+```
+
+# Project Suitability Across Brazil
+
+After fitting the individual and ensemble models, we predict suitability across the whole study area:
+
+```{r}
+projection_out <- biomod2::BIOMOD_Projection(
   bm.mod = model_out,
   proj.name = "Brazil_current",
   new.env = predictors,
   models.chosen = "all"
 )
+
+ensemble_projection_out <- biomod2::BIOMOD_EnsembleForecasting(
+  bm.em = ensemble_out,
+  bm.proj = projection_out,
+  models.chosen = "all"
+)
 ```
 
-The output is saved as:
+The outputs are saved as:
 
 ```text
 outputs/maps/aedes_aegypti_brazil_suitability.tif
+outputs/maps/aedes_aegypti_brazil_ensemble_suitability.tif
 ```
 
 # Map And Interpret
@@ -295,12 +342,13 @@ Stay in the same script:
 scripts/workshop_aedes_aegypti_brazil_sdm.R
 ```
 
-Find **Section 6: Project and map suitability across Brazil** and **Section 7: Interpret the model output**.
+Find **Section 7: Project and map suitability across Brazil** and **Section 8: Interpret the model output**.
 
 This creates:
 
 ```text
 outputs/maps/aedes_aegypti_brazil_suitability.png
+outputs/maps/aedes_aegypti_brazil_ensemble_suitability.png
 ```
 
 ## Interpretation Questions

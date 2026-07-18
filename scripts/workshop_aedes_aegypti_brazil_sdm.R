@@ -43,8 +43,10 @@ source("scripts/99_helpers.R")
 # - terra::rast() reads raster layers
 # - sf::st_read() reads vector spatial data
 # - biomod2::BIOMOD_Modeling() fits the SDM
+# - biomod2::BIOMOD_EnsembleModeling() builds ensemble models
 required_packages <- c(
   "biomod2",
+  "gbm",
   "dplyr",
   "ggplot2",
   "readr",
@@ -262,13 +264,88 @@ formatted_data <- biomod2::BIOMOD_FormatingData(
 
 message_step("Fitting a simple model")
 
-# GLM is used live because it is fast, interpretable, and has few dependencies.
-# Random Forest and ensemble models are good next steps after this workshop.
-models_to_run <- c("GLM")
+# We will run three example algorithms:
+#
+# GLM = Generalized Linear Model
+# GBM = Generalized Boosting Model, also called boosted regression trees
+# RF  = Random Forest
+#
+# These are examples, not a universal recommendation. Model choice should be
+# guided by your data, ecological question, interpretability needs, and runtime.
+models_to_run <- c("GLM", "GBM", "RF")
+
+# biomod2 lets us choose model parameters in two broad ways:
+#
+# 1. Use a predefined parameter set, such as "bigboss".
+# 2. Define our own options with biomod2::bm_ModelingOptions().
+#
+# For the workshop, we keep the live run on "bigboss" defaults because it is
+# simpler. The custom block below shows where you would change parameters later.
+use_custom_model_options <- FALSE
+
+if (use_custom_model_options) {
+  # These names are biomod2's internal option names for our algorithms:
+  # - GLM.binary.stats.glm
+  # - GBM.binary.gbm.gbm
+  # - RF.binary.randomForest.randomForest
+  #
+  # The "_allData_allRun" level means "apply this setting to all pseudo-absence
+  # and cross-validation runs." That is enough for this beginner workshop.
+  custom_model_values <- list(
+    GLM.binary.stats.glm = list(
+      "_allData_allRun" = list(
+        control = list(maxit = 100)
+      )
+    ),
+    GBM.binary.gbm.gbm = list(
+      "_allData_allRun" = list(
+        n.trees = 1000,
+        interaction.depth = 3,
+        shrinkage = 0.005,
+        n.minobsinnode = 5,
+        bag.fraction = 0.5,
+        cv.folds = 3
+      )
+    ),
+    RF.binary.randomForest.randomForest = list(
+      "_allData_allRun" = list(
+        ntree = 300,
+        mtry = 2,
+        nodesize = 5
+      )
+    )
+  )
+
+  modeling_options <- biomod2::bm_ModelingOptions(
+    data.type = "binary",
+    models = models_to_run,
+    strategy = "user.defined",
+    user.val = custom_model_values,
+    user.base = "bigboss",
+    bm.format = formatted_data
+  )
+
+  option_strategy <- "user.defined"
+  option_user <- modeling_options
+} else {
+  # This still creates the modeling options object, so participants can inspect
+  # it and see what biomod2 will use.
+  modeling_options <- biomod2::bm_ModelingOptions(
+    data.type = "binary",
+    models = models_to_run,
+    strategy = "bigboss",
+    bm.format = formatted_data
+  )
+
+  option_strategy <- "bigboss"
+  option_user <- NULL
+}
+
+message("Models selected: ", paste(models_to_run, collapse = ", "))
+message("Option strategy: ", option_strategy)
 
 model_out <- suppressWarnings(
-  # biomod2::BIOMOD_Modeling() fits the SDM. Here we use a GLM because it is
-  # fast and easier to explain in a short beginner workshop.
+  # biomod2::BIOMOD_Modeling() fits the SDMs.
   biomod2::BIOMOD_Modeling(
     bm.format = formatted_data,
     modeling.id = "first_sdm",
@@ -276,6 +353,8 @@ model_out <- suppressWarnings(
     CV.strategy = "random",
     CV.nb.rep = 1,
     CV.perc = 0.8,
+    OPT.strategy = option_strategy,
+    OPT.user = option_user,
     metric.eval = c("TSS", "AUCroc"),
     var.import = 1,
     nb.cpu = 1,
@@ -298,7 +377,43 @@ message("Saved variable importance table to: outputs/tables/variable_importance.
 
 
 # =============================================================================
-# SECTION 6: Project and map suitability across Brazil
+# SECTION 6: Build ensemble models
+# =============================================================================
+
+message_step("Building ensemble models")
+
+# Ensemble models combine predictions from the individual models.
+#
+# Here we build two simple ensemble examples:
+# - EMmean: average prediction across selected models
+# - EMwmean: weighted average, where better-performing models get more weight
+#
+# We use metric.select = "all" for a beginner-friendly first run. In a more
+# formal analysis, you might select models above a TSS or AUC threshold.
+ensemble_out <- biomod2::BIOMOD_EnsembleModeling(
+  bm.mod = model_out,
+  models.chosen = "all",
+  em.by = "all",
+  em.algo = c("EMmean", "EMwmean"),
+  metric.select = "all",
+  metric.eval = c("TSS", "AUCroc"),
+  var.import = 1,
+  nb.cpu = 1,
+  seed.val = 42,
+  do.progress = TRUE
+)
+
+saveRDS(ensemble_out, "outputs/models/aedes_aegypti_biomod2_ensemble.rds")
+
+ensemble_evaluations <- biomod2::get_evaluations(ensemble_out)
+readr::write_csv(as.data.frame(ensemble_evaluations), "outputs/tables/ensemble_evaluation.csv")
+
+message("Saved ensemble object to: outputs/models/aedes_aegypti_biomod2_ensemble.rds")
+message("Saved ensemble evaluation table to: outputs/tables/ensemble_evaluation.csv")
+
+
+# =============================================================================
+# SECTION 7: Project and map suitability across Brazil
 # =============================================================================
 
 message_step("Projecting suitability across Brazil")
@@ -336,6 +451,37 @@ terra::writeRaster(
 saveRDS(projection_out, "outputs/models/aedes_aegypti_biomod2_projection.rds")
 
 message("Saved suitability raster to: outputs/maps/aedes_aegypti_brazil_suitability.tif")
+
+message_step("Projecting ensemble suitability across Brazil")
+
+# biomod2::BIOMOD_EnsembleForecasting() projects the ensemble model across the
+# same environmental raster layers.
+ensemble_projection_out <- biomod2::BIOMOD_EnsembleForecasting(
+  bm.em = ensemble_out,
+  bm.proj = projection_out,
+  models.chosen = "all",
+  nb.cpu = 1
+)
+
+ensemble_raster_all <- biomod2::get_predictions(ensemble_projection_out)
+
+if (terra::nlyr(ensemble_raster_all) > 1) {
+  ensemble_suitability <- terra::app(ensemble_raster_all, mean, na.rm = TRUE)
+} else {
+  ensemble_suitability <- ensemble_raster_all
+}
+
+names(ensemble_suitability) <- "aedes_aegypti_ensemble_suitability"
+
+terra::writeRaster(
+  ensemble_suitability,
+  "outputs/maps/aedes_aegypti_brazil_ensemble_suitability.tif",
+  overwrite = TRUE
+)
+
+saveRDS(ensemble_projection_out, "outputs/models/aedes_aegypti_biomod2_ensemble_projection.rds")
+
+message("Saved ensemble suitability raster to: outputs/maps/aedes_aegypti_brazil_ensemble_suitability.tif")
 
 message_step("Mapping predicted suitability")
 
@@ -387,15 +533,68 @@ ggplot2::ggsave(
   bg = "white"
 )
 
+ensemble_suitability_df <- as.data.frame(ensemble_suitability, xy = TRUE, na.rm = TRUE)
+names(ensemble_suitability_df)[3] <- "ensemble_suitability"
+
+p_ensemble_suitability <- ggplot2::ggplot() +
+  ggplot2::geom_raster(
+    data = ensemble_suitability_df,
+    ggplot2::aes(x = x, y = y, fill = ensemble_suitability)
+  ) +
+  ggplot2::geom_sf(data = brazil_boundary, fill = NA, color = "grey20", linewidth = 0.25) +
+  ggplot2::geom_point(
+    data = occurrences_workshop,
+    ggplot2::aes(x = decimalLongitude, y = decimalLatitude),
+    color = "black",
+    fill = "white",
+    shape = 21,
+    size = 0.9,
+    alpha = 0.45,
+    stroke = 0.15
+  ) +
+  ggplot2::scale_fill_viridis_c(
+    name = "Ensemble suitability",
+    option = "magma",
+    limits = c(0, 1000)
+  ) +
+  ggplot2::coord_sf(expand = FALSE) +
+  ggplot2::labs(
+    title = "Ensemble prediction of environmental suitability for Aedes aegypti",
+    subtitle = "Teaching ensemble combining GLM, GBM, and Random Forest models",
+    x = "Longitude",
+    y = "Latitude",
+    caption = "Suitability is not dengue risk. Ensemble models summarize model predictions but do not remove data bias."
+  ) +
+  ggplot2::theme_minimal(base_size = 12) +
+  ggplot2::theme(
+    plot.caption = ggplot2::element_text(color = "grey35", size = 8),
+    legend.position = "right"
+  )
+
+print(p_ensemble_suitability)
+ggplot2::ggsave(
+  "outputs/maps/aedes_aegypti_brazil_ensemble_suitability.png",
+  p_ensemble_suitability,
+  width = 8,
+  height = 7,
+  dpi = 220,
+  bg = "white"
+)
+
 
 # =============================================================================
-# SECTION 7: Interpret the model output
+# SECTION 8: Interpret the model output
 # =============================================================================
 
 message_step("Model evaluation")
 
 evaluations <- readr::read_csv("outputs/tables/model_evaluation.csv", show_col_types = FALSE)
 print(evaluations)
+
+message_step("Ensemble evaluation")
+
+ensemble_evaluations <- readr::read_csv("outputs/tables/ensemble_evaluation.csv", show_col_types = FALSE)
+print(ensemble_evaluations)
 
 message_step("Interpretation prompts")
 

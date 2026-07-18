@@ -58,6 +58,7 @@ The most important packages are:
 ```r
 install.packages(c(
   "biomod2",
+  "gbm",
   "dplyr",
   "ggplot2",
   "readr",
