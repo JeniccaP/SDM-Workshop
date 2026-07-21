@@ -89,15 +89,16 @@ target_country &lt;- &quot;BR&quot;
 <pre><code class="language-text">scripts/workshop_aedes_aegypti_brazil_sdm.R
 </code></pre>
 <p>Find <strong>Section 1</strong> and <strong>Section 2</strong>, then run them line by line.</p>
-<p>The important idea is:</p>
-<pre><code class="language-r">gbif_count &lt;- rgbif::occ_count(
+<p>Section 2 has two parts.</p>
+<p><strong>Section 2A</strong> shows how to ask GBIF how many records are available:</p>
+<pre><code class="language-r">gbif_count &lt;- occ_count(
   scientificName = target_species,
   country = target_country,
   hasCoordinate = TRUE
 )
 </code></pre>
-<p>Then we download the records:</p>
-<pre><code class="language-r">gbif_download &lt;- rgbif::occ_search(
+<p>It also shows how we would download the records:</p>
+<pre><code class="language-r">gbif_download &lt;- occ_search(
   scientificName = target_species,
   country = target_country,
   hasCoordinate = TRUE,
@@ -106,9 +107,13 @@ target_country &lt;- &quot;BR&quot;
 
 occurrences_raw &lt;- gbif_download$data
 </code></pre>
-<h2>If GBIF Is Slow</h2>
-<p>Use the cached backup by keeping:</p>
-<pre><code class="language-r">download_from_gbif &lt;- FALSE
+<p>In the live workshop, these GBIF download lines are left commented so nobody gets stuck if the internet is slow.</p>
+<p><strong>Section 2B</strong> is the workshop path. We load the cached GBIF records that are already provided in the folder:</p>
+<pre><code class="language-r">occurrences_raw &lt;- read_csv(
+  &quot;data/occurrences/aedes_aegypti_brazil_gbif_raw.csv&quot;,
+  show_col_types = FALSE,
+  guess_max = 10000
+)
 </code></pre>
 <p>The backup file is:</p>
 <pre><code class="language-text">data/occurrences/aedes_aegypti_brazil_clean_backup.csv

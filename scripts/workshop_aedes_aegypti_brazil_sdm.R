@@ -51,10 +51,6 @@ dir.create("outputs/tables", recursive = TRUE, showWarnings = FALSE)
 target_species <- "Aedes aegypti"
 target_country <- "BR"   # BR is the GBIF country code for Brazil
 
-# Set to TRUE if you want to demonstrate a live GBIF download.
-# Keep FALSE for a smoother workshop, because the cached file is quicker.
-download_from_gbif <- FALSE
-
 cat("\nSpecies:", target_species, "\n")
 cat("Country:", target_country, "\n")
 
@@ -68,39 +64,60 @@ cat("Country:", target_country, "\n")
 raw_file <- "data/occurrences/aedes_aegypti_brazil_gbif_raw.csv"
 backup_file <- "data/occurrences/aedes_aegypti_brazil_clean_backup.csv"
 
-if (download_from_gbif == TRUE) {
-  # occ_count() comes from rgbif.
-  # It tells us how many GBIF records match our search.
-  gbif_count <- occ_count(
-    scientificName = target_species,
-    country = target_country,
-    hasCoordinate = TRUE
-  )
+# -------------------------------------------------------------------------
+# 2A. Demonstration: how to check and download records from GBIF
+# -------------------------------------------------------------------------
+#
+# I will show this in the workshop so you know how to adapt the workflow later.
+# If the internet is slow, you do not need to run the download lines. We already
+# provide cached GBIF data in the workshop folder.
+#
+# occ_count() comes from rgbif.
+# It tells us how many GBIF records match our search.
+#
+# gbif_count <- occ_count(
+#   scientificName = target_species,
+#   country = target_country,
+#   hasCoordinate = TRUE
+# )
+#
+# cat("\nGBIF records with coordinates:", gbif_count, "\n")
+#
+# occ_search() comes from rgbif.
+# It downloads occurrence records.
+#
+# This can take a little time. During the workshop, we may run this once as a
+# demonstration, or we may skip straight to the cached file below.
+#
+# gbif_download <- occ_search(
+#   scientificName = target_species,
+#   country = target_country,
+#   hasCoordinate = TRUE,
+#   limit = min(gbif_count, 10000)
+# )
+#
+# occurrences_raw <- gbif_download$data
+#
+# write_csv(occurrences_raw, raw_file)
 
-  cat("\nGBIF records with coordinates:", gbif_count, "\n")
 
-  # occ_search() comes from rgbif.
-  # It downloads occurrence records.
-  gbif_download <- occ_search(
-    scientificName = target_species,
-    country = target_country,
-    hasCoordinate = TRUE,
-    limit = min(gbif_count, 10000)
-  )
+# -------------------------------------------------------------------------
+# 2B. Workshop path: load the cached GBIF records
+# -------------------------------------------------------------------------
+#
+# This is the line we will normally use for the hands-on model.
+# It keeps the workshop moving even if GBIF or the internet is slow.
 
-  occurrences_raw <- gbif_download$data
+occurrences_raw <- suppressWarnings(
+  read_csv(raw_file, show_col_types = FALSE, guess_max = 10000)
+)
 
-  # write_csv() comes from readr.
-  write_csv(occurrences_raw, raw_file)
-} else {
-  # For the workshop we normally use the cached GBIF file.
-  # This means the model can run even if the internet is slow.
-  if (file.exists(raw_file)) {
-    occurrences_raw <- suppressWarnings(read_csv(raw_file, show_col_types = FALSE, guess_max = 10000))
-  } else {
-    occurrences_raw <- suppressWarnings(read_csv(backup_file, show_col_types = FALSE, guess_max = 10000))
-  }
-}
+# Backup option:
+# If the raw cached file is missing, use the already cleaned backup instead.
+
+# occurrences_raw <- suppressWarnings(
+#   read_csv(backup_file, show_col_types = FALSE, guess_max = 10000)
+# )
 
 cat("\nNumber of occurrence records loaded:", nrow(occurrences_raw), "\n")
 
