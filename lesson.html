@@ -204,6 +204,15 @@ model_out &lt;- BIOMOD_Modeling(
   seed.val = 42
 )
 </code></pre>
+<p>The script also saves and plots variable importance:</p>
+<pre><code class="language-text">outputs/tables/variable_importance.csv
+outputs/figures/variable_importance_by_model.png
+</code></pre>
+<p>Variable importance is a quick way to ask:</p>
+<blockquote>
+<p>Which environmental predictors did the models seem most sensitive to?</p>
+</blockquote>
+<p>It is not proof that a variable causes the distribution pattern. It is a model diagnostic that should be interpreted with biology and data quality in mind.</p>
 <h2>What Are Pseudo-Absences?</h2>
 <p>Occurrence data tell us where the species was recorded. They usually do not tell us where the species was truly absent.</p>
 <p>Pseudo-absences are background locations used to help the model compare known presence sites with available environmental conditions.</p>

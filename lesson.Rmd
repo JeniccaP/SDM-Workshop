@@ -276,6 +276,19 @@ model_out <- BIOMOD_Modeling(
 )
 ```
 
+The script also saves and plots variable importance:
+
+```text
+outputs/tables/variable_importance.csv
+outputs/figures/variable_importance_by_model.png
+```
+
+Variable importance is a quick way to ask:
+
+> Which environmental predictors did the models seem most sensitive to?
+
+It is not proof that a variable causes the distribution pattern. It is a model diagnostic that should be interpreted with biology and data quality in mind.
+
 ## What Are Pseudo-Absences?
 
 Occurrence data tell us where the species was recorded. They usually do not tell us where the species was truly absent.

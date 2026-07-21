@@ -348,6 +348,42 @@ write_csv(as.data.frame(variable_importance), "outputs/tables/variable_importanc
 
 model_evaluation
 
+# Plot variable importance.
+#
+# Higher values mean that model predictions changed more when that variable was
+# shuffled. In simple terms: the model was more sensitive to that variable.
+#
+# We average across biomod2 runs so the plot is easier to read in the workshop.
+
+variable_importance_plot_data <- as.data.frame(variable_importance) %>%
+  group_by(algo, expl.var) %>%
+  summarise(mean_importance = mean(var.imp, na.rm = TRUE), .groups = "drop")
+
+p_var_importance <- ggplot(
+  variable_importance_plot_data,
+  aes(x = mean_importance, y = reorder(expl.var, mean_importance), fill = algo)
+) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Variable importance by model type",
+    subtitle = "Mean importance across biomod2 runs",
+    x = "Mean variable importance",
+    y = "Environmental predictor",
+    fill = "Model"
+  ) +
+  theme_minimal(base_size = 12)
+
+print(p_var_importance)
+
+ggsave(
+  "outputs/figures/variable_importance_by_model.png",
+  p_var_importance,
+  width = 8,
+  height = 5,
+  dpi = 220,
+  bg = "white"
+)
+
 
 ################################################################################
 ################################################################################
