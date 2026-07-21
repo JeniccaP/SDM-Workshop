@@ -291,15 +291,15 @@ cat("\nNumber of records used for modeling:", nrow(occurrences_model), "\n")
 # BIOMOD_FormatingData() comes from biomod2.
 # Because we only have presence records, biomod2 creates pseudo-absences.
 formatted_data <- BIOMOD_FormatingData(
-  resp.name = "Aedes_aegypti",
-  resp.var = species_presence,
-  resp.xy = species_xy,
-  expl.var = predictors,
-  PA.nb.rep = 1,
-  PA.nb.absences = 1000,
-  PA.strategy = "random",
-  filter.raster = TRUE,
-  seed.val = 42
+  resp.name = "Aedes_aegypti",  # Name biomod2 will use for this species/modeling object.
+  resp.var = species_presence,  # Response values: 1 = species recorded as present.
+  resp.xy = species_xy,         # Coordinates for the presence records: longitude and latitude.
+  expl.var = predictors,        # Environmental raster layers used to explain/predict suitability.
+  PA.nb.rep = 1,                # Number of pseudo-absence datasets to create.
+  PA.nb.absences = 1000,        # Number of pseudo-absence points to sample.
+  PA.strategy = "random",       # How pseudo-absences are chosen; here, randomly across the study area.
+  filter.raster = TRUE,         # Keep only one presence point per raster cell.
+  seed.val = 42                 # Makes the random pseudo-absence sampling reproducible.
 )
 
 
@@ -323,24 +323,28 @@ models_to_run <- c("GLM", "GBM", "RF")
 # near the end of this script.
 
 model_out <- BIOMOD_Modeling(
-  bm.format = formatted_data,
-  modeling.id = "first_sdm",
-  models = models_to_run,
-  CV.strategy = "random",
-  CV.nb.rep = 1,
-  CV.perc = 0.8,
-  OPT.strategy = "bigboss",
-  metric.eval = c("TSS", "AUCroc"),
-  var.import = 1,
-  nb.cpu = 1,
-  seed.val = 42,
-  do.progress = TRUE
+  bm.format = formatted_data,       # The prepared presence/pseudo-absence/environment data.
+  modeling.id = "first_sdm",        # A label for this modeling run; used in output names.
+  models = models_to_run,           # Algorithms to run: GLM, GBM, and RF in this workshop.
+  CV.strategy = "random",           # Randomly split records into calibration and evaluation data.
+  CV.nb.rep = 1,                    # Number of cross-validation repeats; 1 keeps the workshop fast.
+  CV.perc = 0.8,                    # Use 80% of records for training and 20% for testing.
+  OPT.strategy = "bigboss",         # Use biomod2's recommended default settings for each model.
+  metric.eval = c("TSS", "AUCroc"), # Evaluation metrics to calculate for each model.
+  var.import = 1,                   # Calculate variable importance once per model.
+  nb.cpu = 1,                       # Use one CPU core; safest for mixed student laptops.
+  seed.val = 42,                    # Makes random splits and model setup reproducible.
+  do.progress = TRUE                # Show progress messages while models run.
 )
 
 saveRDS(model_out, "outputs/models/aedes_aegypti_biomod2_model.rds")
 
-# get_evaluations() and get_variables_importance() come from biomod2.
+# get_evaluations() comes from biomod2.
+# It extracts the TSS and AUCroc scores requested in BIOMOD_Modeling().
 model_evaluation <- get_evaluations(model_out)
+
+# get_variables_importance() comes from biomod2.
+# It shows which environmental predictors most influenced each model.
 variable_importance <- get_variables_importance(model_out)
 
 write_csv(as.data.frame(model_evaluation), "outputs/tables/model_evaluation.csv")
@@ -399,20 +403,21 @@ ggsave(
 # For this beginner workshop, we keep all models in the ensemble.
 
 ensemble_out <- BIOMOD_EnsembleModeling(
-  bm.mod = model_out,
-  models.chosen = "all",
-  em.by = "all",
-  em.algo = c("EMmean", "EMwmean"),
-  metric.select = "all",
-  metric.eval = c("TSS", "AUCroc"),
-  var.import = 1,
-  nb.cpu = 1,
-  seed.val = 42,
-  do.progress = TRUE
+  bm.mod = model_out,               # The individual biomod2 models we just fitted.
+  models.chosen = "all",            # Use all fitted GLM, GBM, and RF models in the ensemble.
+  em.by = "all",                    # Build one ensemble across all runs/models together.
+  em.algo = c("EMmean", "EMwmean"), # Ensemble methods: simple mean and performance-weighted mean.
+  metric.select = "all",            # Do not filter models by a performance threshold here.
+  metric.eval = c("TSS", "AUCroc"), # Evaluation metrics to calculate for the ensemble.
+  var.import = 1,                   # Calculate ensemble variable importance once.
+  nb.cpu = 1,                       # Use one CPU core; safest for mixed student laptops.
+  seed.val = 42,                    # Makes any random steps reproducible.
+  do.progress = TRUE                # Show progress messages while the ensemble is built.
 )
 
 saveRDS(ensemble_out, "outputs/models/aedes_aegypti_biomod2_ensemble.rds")
 
+# Extract the evaluation table for the ensemble models.
 ensemble_evaluation <- get_evaluations(ensemble_out)
 write_csv(as.data.frame(ensemble_evaluation), "outputs/tables/ensemble_evaluation.csv")
 
@@ -427,15 +432,17 @@ ensemble_evaluation
 
 # BIOMOD_Projection() projects the individual models across all raster cells.
 projection_out <- BIOMOD_Projection(
-  bm.mod = model_out,
-  proj.name = "Brazil_current",
-  new.env = predictors,
-  models.chosen = "all",
-  build.clamping.mask = FALSE,
-  nb.cpu = 1,
-  seed.val = 42
+  bm.mod = model_out,              # The fitted individual models to project onto the map.
+  proj.name = "Brazil_current",    # A label for this projection scenario.
+  new.env = predictors,            # Raster predictors for the area we want to map.
+  models.chosen = "all",           # Project all fitted GLM, GBM, and RF models.
+  build.clamping.mask = FALSE,     # Skip the extrapolation mask to keep the workshop simpler.
+  nb.cpu = 1,                      # Use one CPU core; safest for mixed student laptops.
+  seed.val = 42                    # Keeps projection steps reproducible where randomness is used.
 )
 
+# get_predictions() comes from biomod2.
+# It extracts raster prediction layers from the projection object.
 prediction_layers <- get_predictions(projection_out)
 
 # Biomod2 returns several prediction layers. For this first workshop map,
@@ -456,12 +463,13 @@ writeRaster(
 
 # BIOMOD_EnsembleForecasting() projects the ensemble model.
 ensemble_projection_out <- BIOMOD_EnsembleForecasting(
-  bm.em = ensemble_out,
-  bm.proj = projection_out,
-  models.chosen = "all",
-  nb.cpu = 1
+  bm.em = ensemble_out,     # The ensemble model object created above.
+  bm.proj = projection_out, # The individual-model projection to use as the base projection.
+  models.chosen = "all",    # Project all available ensemble outputs.
+  nb.cpu = 1                # Use one CPU core; safest for mixed student laptops.
 )
 
+# Extract raster prediction layers from the ensemble projection.
 ensemble_prediction_layers <- get_predictions(ensemble_projection_out)
 
 if (nlyr(ensemble_prediction_layers) > 1) {
@@ -594,34 +602,36 @@ ensemble_evaluation
 #
 # custom_model_values <- list(
 #   GLM.binary.stats.glm = list(
-#     "_allData_allRun" = list(control = list(maxit = 100))
+#     "_allData_allRun" = list(       # Apply these settings to all data and all runs.
+#       control = list(maxit = 100)   # Allow the GLM algorithm up to 100 fitting iterations.
+#     )
 #   ),
 #   GBM.binary.gbm.gbm = list(
-#     "_allData_allRun" = list(
-#       n.trees = 1000,
-#       interaction.depth = 3,
-#       shrinkage = 0.005,
-#       n.minobsinnode = 5,
-#       bag.fraction = 0.5,
-#       cv.folds = 3
+#     "_allData_allRun" = list(       # Apply these settings to all data and all runs.
+#       n.trees = 1000,              # Number of trees to build.
+#       interaction.depth = 3,       # Maximum tree depth; larger values allow more interactions.
+#       shrinkage = 0.005,           # Learning rate; smaller values learn more slowly.
+#       n.minobsinnode = 5,          # Minimum observations allowed in a terminal tree node.
+#       bag.fraction = 0.5,          # Fraction of data used to fit each tree.
+#       cv.folds = 3                 # Number of folds for GBM internal cross-validation.
 #     )
 #   ),
 #   RF.binary.randomForest.randomForest = list(
-#     "_allData_allRun" = list(
-#       ntree = 300,
-#       mtry = 2,
-#       nodesize = 5
+#     "_allData_allRun" = list(       # Apply these settings to all data and all runs.
+#       ntree = 300,                 # Number of trees in the random forest.
+#       mtry = 2,                    # Number of predictors tried at each tree split.
+#       nodesize = 5                 # Minimum size of terminal nodes.
 #     )
 #   )
 # )
 #
 # custom_options <- bm_ModelingOptions(
-#   data.type = "binary",
-#   models = models_to_run,
-#   strategy = "user.defined",
-#   user.val = custom_model_values,
-#   user.base = "bigboss",
-#   bm.format = formatted_data
+#   data.type = "binary",           # Presence/pseudo-absence data are treated as binary.
+#   models = models_to_run,         # The same GLM, GBM, and RF models selected above.
+#   strategy = "user.defined",      # Tell biomod2 we are supplying our own settings.
+#   user.val = custom_model_values, # The list of GLM, GBM, and RF settings written above.
+#   user.base = "bigboss",          # Start from bigboss defaults, then replace values we set.
+#   bm.format = formatted_data      # The same formatted biomod2 data object used for modeling.
 # )
 #
 # To use these options in BIOMOD_Modeling(), you would add:
