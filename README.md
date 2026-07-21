@@ -32,22 +32,22 @@ scripts/workshop_aedes_aegypti_brazil_sdm.R
 
 ## Live Workshop Script
 
-The main script is intentionally written as one annotated file with section headers:
+The main script is intentionally written as one annotated file with section headers and packages loaded at the top:
 
 ```text
 scripts/workshop_aedes_aegypti_brazil_sdm.R
 ```
 
-It uses the `package::function()` style so participants can see where functions come from, for example:
+The main packages used are:
 
-```r
-rgbif::occ_search()
-terra::rast()
-sf::st_read()
-ggplot2::ggplot()
-biomod2::BIOMOD_Modeling()
-biomod2::bm_ModelingOptions()
-biomod2::BIOMOD_EnsembleModeling()
+```text
+rgbif
+terra
+sf
+ggplot2
+biomod2
+gbm
+randomForest
 ```
 
 ## Data

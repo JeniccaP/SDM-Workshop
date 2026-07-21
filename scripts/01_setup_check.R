@@ -1,7 +1,5 @@
 # Check that the workshop folder and packages are ready.
 
-source("scripts/99_helpers.R")
-
 required_packages <- c(
   "biomod2",
   "gbm",
@@ -17,10 +15,22 @@ required_packages <- c(
   "randomForest"
 )
 
-message_step("Checking required packages")
-check_required_packages(required_packages)
+cat("\nChecking required packages...\n")
 
-message_step("Checking workshop folders")
+missing_packages <- required_packages[
+  !vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)
+]
+
+if (length(missing_packages) > 0) {
+  stop(
+    "These packages are missing: ",
+    paste(missing_packages, collapse = ", "),
+    "\nPlease run scripts/00_install_packages.R first.",
+    call. = FALSE
+  )
+}
+
+cat("\nChecking workshop folders...\n")
 required_dirs <- c(
   "scripts",
   "data/occurrences",
@@ -33,10 +43,12 @@ required_dirs <- c(
 )
 
 for (folder in required_dirs) {
-  safe_dir_create(folder)
+  if (!dir.exists(folder)) {
+    dir.create(folder, recursive = TRUE, showWarnings = FALSE)
+  }
 }
 
-message_step("Checking cached data")
+cat("\nChecking cached data...\n")
 cached_occurrences <- "data/occurrences/aedes_aegypti_brazil_clean_backup.csv"
 cached_predictors <- "data/environment/brazil_bioclim_predictors.tif"
 cached_boundary <- "data/boundaries/brazil_boundary.gpkg"
@@ -59,5 +71,5 @@ if (file.exists(cached_boundary)) {
   message("Brazil boundary not found yet. The workshop includes a script to create it.")
 }
 
-message_step("Setup check complete")
+cat("\nSetup check complete.\n")
 message("If there were no errors, you are ready for the workshop.")

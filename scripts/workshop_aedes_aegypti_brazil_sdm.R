@@ -1,115 +1,87 @@
 # Dengue vector SDM workshop
 # A beginner-friendly species distribution model for Aedes aegypti in Brazil
 #
-# How to use this script:
-# 1. Open SDM_dengue_Brazil_workshop.Rproj.
-# 2. Open this script in RStudio.
-# 3. Run it section by section, using Ctrl+Enter / Cmd+Enter.
+# Open SDM_dengue_Brazil_workshop.Rproj first.
+# Then run this script section by section in RStudio.
 #
-# Important:
 # This is a teaching model. It estimates environmental suitability for
 # Aedes aegypti. It does not estimate dengue transmission or dengue risk.
 
 
-# =============================================================================
-# SECTION 0: Setup
-# =============================================================================
+################################################################################
+################################################################################
+############################### 0. LOAD PACKAGES ################################
+################################################################################
+################################################################################
 
-# This line loads a small file of workshop helper functions that we wrote for
-# this lesson. These helper functions are not from an R package.
-#
-# You can open scripts/99_helpers.R to inspect them. The main helpers used here
-# are:
-# - check_required_packages(): checks whether packages are installed
-# - safe_dir_create(): creates folders if they do not already exist
-# - message_step(): prints readable section messages in the Console
-# - clean_occurrence_table(): does simple coordinate cleaning
-# - sample_occurrences(): keeps a random teaching-sized sample of records
-# - thin_to_one_point_per_cell(): keeps one record per environmental raster cell
-source("scripts/99_helpers.R")
+# If some packages are not installed, run:
+# source("scripts/00_install_packages.R")
 
-# Packages are collections of functions. For example, the function rast() comes
-# from the terra package. In this workshop script, we usually write that as:
-#
-# terra::rast()
-#
-# This package::function() style helps you see where a function comes from.
-#
-# Quick examples you will see below:
-# - rgbif::occ_search() downloads occurrence records from GBIF
-# - readr::read_csv() reads a CSV file
-# - ggplot2::ggplot() starts a plot
-# - rnaturalearth::ne_countries() gets a country boundary
-# - terra::rast() reads raster layers
-# - sf::st_read() reads vector spatial data
-# - biomod2::BIOMOD_Modeling() fits the SDM
-# - biomod2::BIOMOD_EnsembleModeling() builds ensemble models
-required_packages <- c(
-  "biomod2",
-  "gbm",
-  "dplyr",
-  "ggplot2",
-  "readr",
-  "rgbif",
-  "sf",
-  "terra",
-  "viridis",
-  "rnaturalearth",
-  "rnaturalearthdata",
-  "randomForest"
+LIB <- c(
+  "rgbif",              # download occurrence records from GBIF
+  "biomod2",            # species distribution models
+  "terra",              # raster data
+  "sf",                 # vector spatial data
+  "dplyr",              # data cleaning
+  "readr",              # read/write CSV files
+  "ggplot2",            # plotting
+  "rnaturalearth",      # Brazil boundary map
+  "rnaturalearthdata",  # map data used by rnaturalearth
+  "gbm",                # GBM model used by biomod2
+  "randomForest"        # Random Forest model used by biomod2
 )
 
-check_required_packages(required_packages)
+for (pkg in LIB) {
+  suppressPackageStartupMessages(suppressWarnings(library(pkg, character.only = TRUE)))
+}
 
-# Most of the script uses package::function() so you can see where functions
-# come from. biomod2 is a special case: some biomod2 modeling steps expect the
-# package to be attached with library(). We still write the visible biomod2 calls
-# as biomod2::BIOMOD_Modeling(), biomod2::BIOMOD_Projection(), and so on.
-suppressPackageStartupMessages(suppressWarnings(library(biomod2)))
-
-safe_dir_create("outputs/figures")
-safe_dir_create("outputs/maps")
-safe_dir_create("outputs/models")
-safe_dir_create("outputs/tables")
+# Create output folders if they do not already exist.
+dir.create("outputs/figures", recursive = TRUE, showWarnings = FALSE)
+dir.create("outputs/maps", recursive = TRUE, showWarnings = FALSE)
+dir.create("outputs/models", recursive = TRUE, showWarnings = FALSE)
+dir.create("outputs/tables", recursive = TRUE, showWarnings = FALSE)
 
 
-# =============================================================================
-# SECTION 1: Choose the species and study area
-# =============================================================================
+################################################################################
+################################################################################
+###################### 1. CHOOSE SPECIES AND STUDY AREA ########################
+################################################################################
+################################################################################
 
 target_species <- "Aedes aegypti"
-target_country <- "BR"
+target_country <- "BR"   # BR is the GBIF country code for Brazil
 
-# For the live workshop, FALSE is safer and quicker because it uses the cleaned
-# backup file. To demonstrate a live GBIF download, change this to TRUE.
+# Set to TRUE if you want to demonstrate a live GBIF download.
+# Keep FALSE for a smoother workshop, because the cached file is quicker.
 download_from_gbif <- FALSE
 
-message_step("Workshop target")
-message("Species: ", target_species)
-message("Country: ", target_country)
+cat("\nSpecies:", target_species, "\n")
+cat("Country:", target_country, "\n")
 
 
-# =============================================================================
-# SECTION 2: Get occurrence records from GBIF or use the cached backup
-# =============================================================================
+################################################################################
+################################################################################
+######################### 2. GET OCCURRENCE RECORDS ############################
+################################################################################
+################################################################################
 
 raw_file <- "data/occurrences/aedes_aegypti_brazil_gbif_raw.csv"
 backup_file <- "data/occurrences/aedes_aegypti_brazil_clean_backup.csv"
 
-if (download_from_gbif) {
-  message_step("Checking GBIF record count")
-
-  gbif_count <- rgbif::occ_count(
+if (download_from_gbif == TRUE) {
+  # occ_count() comes from rgbif.
+  # It tells us how many GBIF records match our search.
+  gbif_count <- occ_count(
     scientificName = target_species,
     country = target_country,
     hasCoordinate = TRUE
   )
 
-  message("GBIF currently reports ", gbif_count, " coordinate-bearing records.")
+  cat("\nGBIF records with coordinates:", gbif_count, "\n")
 
-  message_step("Downloading GBIF occurrence records")
-
-  gbif_download <- rgbif::occ_search(
+  # occ_search() comes from rgbif.
+  # It downloads occurrence records.
+  gbif_download <- occ_search(
     scientificName = target_species,
     country = target_country,
     hasCoordinate = TRUE,
@@ -117,140 +89,191 @@ if (download_from_gbif) {
   )
 
   occurrences_raw <- gbif_download$data
-  readr::write_csv(occurrences_raw, raw_file)
-  message("Saved raw GBIF records to: ", raw_file)
-} else if (file.exists(raw_file)) {
-  message_step("Using cached raw GBIF records")
-  occurrences_raw <- suppressWarnings(readr::read_csv(raw_file, show_col_types = FALSE, guess_max = 10000))
+
+  # write_csv() comes from readr.
+  write_csv(occurrences_raw, raw_file)
 } else {
-  message_step("Using cleaned backup occurrence records")
-  occurrences_raw <- suppressWarnings(readr::read_csv(backup_file, show_col_types = FALSE, guess_max = 10000))
+  # For the workshop we normally use the cached GBIF file.
+  # This means the model can run even if the internet is slow.
+  if (file.exists(raw_file)) {
+    occurrences_raw <- suppressWarnings(read_csv(raw_file, show_col_types = FALSE, guess_max = 10000))
+  } else {
+    occurrences_raw <- suppressWarnings(read_csv(backup_file, show_col_types = FALSE, guess_max = 10000))
+  }
 }
 
-message("Rows loaded: ", nrow(occurrences_raw))
+cat("\nNumber of occurrence records loaded:", nrow(occurrences_raw), "\n")
 
 
-# =============================================================================
-# SECTION 3: Clean and map occurrence records
-# =============================================================================
+################################################################################
+################################################################################
+######################## 3. CLEAN OCCURRENCE RECORDS ###########################
+################################################################################
+################################################################################
 
-message_step("Cleaning occurrence coordinates")
+# We keep only records with longitude and latitude.
+occurrences_clean <- occurrences_raw %>%
+  filter(!is.na(decimalLongitude), !is.na(decimalLatitude))
 
-# clean_occurrence_table() is one of our workshop helper functions from
-# scripts/99_helpers.R. It keeps records with plausible Brazil coordinates,
-# removes missing coordinates, removes zero-zero coordinates, and drops exact
-# duplicate coordinate pairs.
-occurrences_clean <- clean_occurrence_table(occurrences_raw)
+# We keep points inside a broad Brazil bounding box.
+# This is a simple teaching filter, not a perfect country-border check.
+occurrences_clean <- occurrences_clean %>%
+  filter(decimalLongitude >= -75, decimalLongitude <= -30) %>%
+  filter(decimalLatitude >= -35, decimalLatitude <= 6)
 
-message("Rows before cleaning: ", nrow(occurrences_raw))
-message("Rows after cleaning:  ", nrow(occurrences_clean))
+# Remove the common bad coordinate 0, 0.
+occurrences_clean <- occurrences_clean %>%
+  filter(!(decimalLongitude == 0 & decimalLatitude == 0))
 
-# Keep a workshop-sized sample so the model is fast on beginner laptops.
+# Remove exact duplicate coordinate pairs.
+occurrences_clean <- occurrences_clean %>%
+  distinct(decimalLongitude, decimalLatitude, .keep_all = TRUE)
+
+cat("\nRecords before cleaning:", nrow(occurrences_raw), "\n")
+cat("Records after cleaning:", nrow(occurrences_clean), "\n")
+
+# Keep a smaller random sample for the live workshop.
+# This keeps the model fast on ordinary laptops.
+set.seed(42)
 max_points <- 1000
 
-# sample_occurrences() is also a workshop helper. It uses dplyr::slice_sample()
-# inside the helper file, but we keep the main script uncluttered here.
-occurrences_workshop <- sample_occurrences(occurrences_clean, max_points = max_points, seed = 42)
+if (nrow(occurrences_clean) > max_points) {
+  occurrences_workshop <- slice_sample(occurrences_clean, n = max_points)
+} else {
+  occurrences_workshop <- occurrences_clean
+}
 
-clean_file <- "data/occurrences/aedes_aegypti_brazil_clean_workshop.csv"
-readr::write_csv(occurrences_workshop, clean_file)
+write_csv(
+  occurrences_workshop,
+  "data/occurrences/aedes_aegypti_brazil_clean_workshop.csv"
+)
 
-message("Records used in the live workflow: ", nrow(occurrences_workshop))
-message("Saved cleaned workshop records to: ", clean_file)
 
-message_step("Mapping cleaned occurrence records")
+################################################################################
+################################################################################
+########################### 4. MAP OCCURRENCE RECORDS ##########################
+################################################################################
+################################################################################
 
-# rnaturalearth::ne_countries() downloads/loads a country boundary.
-# returnclass = "sf" means we want an sf spatial object, which ggplot2 can map.
-brazil <- rnaturalearth::ne_countries(country = "Brazil", scale = "medium", returnclass = "sf")
+# ne_countries() comes from rnaturalearth.
+brazil <- ne_countries(country = "Brazil", scale = "medium", returnclass = "sf")
 
-p_occ <- ggplot2::ggplot() +
-  ggplot2::geom_sf(data = brazil, fill = "grey95", color = "grey45", linewidth = 0.3) +
-  ggplot2::geom_point(
+p_occ <- ggplot() +
+  geom_sf(data = brazil, fill = "grey95", color = "grey45", linewidth = 0.3) +
+  geom_point(
     data = occurrences_workshop,
-    ggplot2::aes(x = decimalLongitude, y = decimalLatitude),
+    aes(x = decimalLongitude, y = decimalLatitude),
     color = "#D1495B",
     alpha = 0.55,
     size = 1.4
   ) +
-  ggplot2::coord_sf(xlim = c(-75, -30), ylim = c(-35, 6), expand = FALSE) +
-  ggplot2::labs(
+  coord_sf(xlim = c(-75, -30), ylim = c(-35, 6), expand = FALSE) +
+  labs(
     title = "Cleaned Aedes aegypti occurrence records",
     subtitle = "Brazil, GBIF records with coordinates",
     x = "Longitude",
     y = "Latitude"
   ) +
-  ggplot2::theme_minimal(base_size = 12)
+  theme_minimal(base_size = 12)
 
 print(p_occ)
-ggplot2::ggsave("outputs/figures/cleaned_occurrence_records.png", p_occ, width = 7, height = 7, dpi = 180, bg = "white")
+
+ggsave(
+  "outputs/figures/cleaned_occurrence_records.png",
+  p_occ,
+  width = 7,
+  height = 7,
+  dpi = 180,
+  bg = "white"
+)
 
 
-# =============================================================================
-# SECTION 4: Load environmental predictors
-# =============================================================================
+################################################################################
+################################################################################
+######################### 5. LOAD ENVIRONMENTAL RASTERS ########################
+################################################################################
+################################################################################
 
-message_step("Loading environmental predictors")
+# rast() comes from terra.
+# It reads raster data: gridded data such as temperature or rainfall.
+predictors <- rast("data/environment/brazil_bioclim_predictors.tif")
 
-predictor_file <- "data/environment/brazil_bioclim_predictors.tif"
-boundary_file <- "data/boundaries/brazil_boundary.gpkg"
+# st_read() comes from sf.
+# It reads vector spatial data, such as a country boundary.
+brazil_boundary <- st_read("data/boundaries/brazil_boundary.gpkg", quiet = TRUE)
 
-# terra::rast() reads raster data. A raster is a grid of cells, like a map image,
-# where each cell contains data values such as temperature or rainfall.
-predictors <- terra::rast(predictor_file)
+names(predictors)
+plot(predictors)
 
-# sf::st_read() reads vector spatial data, such as the Brazil boundary polygon.
-brazil_boundary <- sf::st_read(boundary_file, quiet = TRUE)
-
-message("Predictor layers:")
-print(names(predictors))
-
+# Plot one environmental layer.
 annual_temp <- predictors[["bio01_annual_mean_temperature"]]
 annual_temp_df <- as.data.frame(annual_temp, xy = TRUE, na.rm = TRUE)
 
-p_temp <- ggplot2::ggplot(annual_temp_df) +
-  ggplot2::geom_raster(ggplot2::aes(x = x, y = y, fill = bio01_annual_mean_temperature)) +
-  ggplot2::geom_sf(data = brazil_boundary, fill = NA, color = "grey25", linewidth = 0.25, inherit.aes = FALSE) +
-  ggplot2::scale_fill_viridis_c(name = "deg C") +
-  ggplot2::coord_sf(expand = FALSE) +
-  ggplot2::labs(
+p_temp <- ggplot(annual_temp_df) +
+  geom_raster(aes(x = x, y = y, fill = bio01_annual_mean_temperature)) +
+  geom_sf(data = brazil_boundary, fill = NA, color = "grey25", linewidth = 0.25) +
+  scale_fill_viridis_c(name = "deg C") +
+  coord_sf(expand = FALSE) +
+  labs(
     title = "Annual mean temperature predictor",
     subtitle = "Prepared for the workshop modeling exercise",
     x = "Longitude",
     y = "Latitude"
   ) +
-  ggplot2::theme_minimal(base_size = 12)
+  theme_minimal(base_size = 12)
 
 print(p_temp)
-ggplot2::ggsave("outputs/figures/environment_annual_temperature.png", p_temp, width = 7, height = 7, dpi = 180, bg = "white")
+
+ggsave(
+  "outputs/figures/environment_annual_temperature.png",
+  p_temp,
+  width = 7,
+  height = 7,
+  dpi = 180,
+  bg = "white"
+)
 
 
-# =============================================================================
-# SECTION 5: Format data and run a first biomod2 model
-# =============================================================================
+################################################################################
+################################################################################
+########################## 6. PREPARE DATA FOR BIOMOD2 #########################
+################################################################################
+################################################################################
 
-message_step("Preparing occurrence records for biomod2")
+# Biomod2 needs:
+# 1. A response variable: 1 means presence.
+# 2. Coordinates for the presence records.
+# 3. Environmental raster layers.
 
-# Thin to one occurrence per environmental grid cell. This avoids giving extra
-# weight to repeated points inside the same predictor pixel.
-#
-# thin_to_one_point_per_cell() is a workshop helper. Inside that helper, the key
-# terra function is terra::cellFromXY(), which asks: "which raster cell contains
-# this longitude/latitude point?"
-occurrences_model <- thin_to_one_point_per_cell(occurrences_workshop, predictors)
-occurrences_model <- sample_occurrences(occurrences_model, max_points = 800, seed = 42)
+# First, keep only one occurrence record per raster cell.
+# This avoids giving too much weight to repeated records in the same pixel.
+cell_id <- cellFromXY(
+  predictors[[1]],
+  as.matrix(occurrences_workshop[, c("decimalLongitude", "decimalLatitude")])
+)
 
-message("Records used for modeling: ", nrow(occurrences_model))
+occurrences_workshop$cell_id <- cell_id
+
+occurrences_model <- occurrences_workshop %>%
+  filter(!is.na(cell_id)) %>%
+  distinct(cell_id, .keep_all = TRUE)
+
+# Keep the modeling dataset small enough for the workshop.
+set.seed(42)
+max_model_points <- 800
+
+if (nrow(occurrences_model) > max_model_points) {
+  occurrences_model <- slice_sample(occurrences_model, n = max_model_points)
+}
 
 species_xy <- as.matrix(occurrences_model[, c("decimalLongitude", "decimalLatitude")])
 species_presence <- rep(1, nrow(occurrences_model))
 
-message_step("Formatting data for biomod2")
+cat("\nNumber of records used for modeling:", nrow(occurrences_model), "\n")
 
-# biomod2::BIOMOD_FormatingData() organizes the species records, coordinates,
-# environmental predictors, and pseudo-absence settings into the format biomod2
-# expects.
-formatted_data <- biomod2::BIOMOD_FormatingData(
+# BIOMOD_FormatingData() comes from biomod2.
+# Because we only have presence records, biomod2 creates pseudo-absences.
+formatted_data <- BIOMOD_FormatingData(
   resp.name = "Aedes_aegypti",
   resp.var = species_presence,
   resp.xy = species_xy,
@@ -262,135 +285,67 @@ formatted_data <- biomod2::BIOMOD_FormatingData(
   seed.val = 42
 )
 
-message_step("Fitting a simple model")
+
+################################################################################
+################################################################################
+############################ 7. RUN INDIVIDUAL MODELS ##########################
+################################################################################
+################################################################################
 
 # We will run three example algorithms:
-#
 # GLM = Generalized Linear Model
-# GBM = Generalized Boosting Model, also called boosted regression trees
+# GBM = Generalized Boosting Model / boosted regression trees
 # RF  = Random Forest
-#
-# These are examples, not a universal recommendation. Model choice should be
-# guided by your data, ecological question, interpretability needs, and runtime.
+
 models_to_run <- c("GLM", "GBM", "RF")
 
-# biomod2 lets us choose model parameters in two broad ways:
+# For the workshop we use biomod2's "bigboss" default model settings.
+# This keeps the live code shorter.
 #
-# 1. Use a predefined parameter set, such as "bigboss".
-# 2. Define our own options with biomod2::bm_ModelingOptions().
-#
-# For the workshop, we keep the live run on "bigboss" defaults because it is
-# simpler. The custom block below shows where you would change parameters later.
-use_custom_model_options <- FALSE
+# If you want to customize model settings later, look at the optional section
+# near the end of this script.
 
-if (use_custom_model_options) {
-  # These names are biomod2's internal option names for our algorithms:
-  # - GLM.binary.stats.glm
-  # - GBM.binary.gbm.gbm
-  # - RF.binary.randomForest.randomForest
-  #
-  # The "_allData_allRun" level means "apply this setting to all pseudo-absence
-  # and cross-validation runs." That is enough for this beginner workshop.
-  custom_model_values <- list(
-    GLM.binary.stats.glm = list(
-      "_allData_allRun" = list(
-        control = list(maxit = 100)
-      )
-    ),
-    GBM.binary.gbm.gbm = list(
-      "_allData_allRun" = list(
-        n.trees = 1000,
-        interaction.depth = 3,
-        shrinkage = 0.005,
-        n.minobsinnode = 5,
-        bag.fraction = 0.5,
-        cv.folds = 3
-      )
-    ),
-    RF.binary.randomForest.randomForest = list(
-      "_allData_allRun" = list(
-        ntree = 300,
-        mtry = 2,
-        nodesize = 5
-      )
-    )
-  )
-
-  modeling_options <- biomod2::bm_ModelingOptions(
-    data.type = "binary",
-    models = models_to_run,
-    strategy = "user.defined",
-    user.val = custom_model_values,
-    user.base = "bigboss",
-    bm.format = formatted_data
-  )
-
-  option_strategy <- "user.defined"
-  option_user <- modeling_options
-} else {
-  # This still creates the modeling options object, so participants can inspect
-  # it and see what biomod2 will use.
-  modeling_options <- biomod2::bm_ModelingOptions(
-    data.type = "binary",
-    models = models_to_run,
-    strategy = "bigboss",
-    bm.format = formatted_data
-  )
-
-  option_strategy <- "bigboss"
-  option_user <- NULL
-}
-
-message("Models selected: ", paste(models_to_run, collapse = ", "))
-message("Option strategy: ", option_strategy)
-
-model_out <- suppressWarnings(
-  # biomod2::BIOMOD_Modeling() fits the SDMs.
-  biomod2::BIOMOD_Modeling(
-    bm.format = formatted_data,
-    modeling.id = "first_sdm",
-    models = models_to_run,
-    CV.strategy = "random",
-    CV.nb.rep = 1,
-    CV.perc = 0.8,
-    OPT.strategy = option_strategy,
-    OPT.user = option_user,
-    metric.eval = c("TSS", "AUCroc"),
-    var.import = 1,
-    nb.cpu = 1,
-    seed.val = 42,
-    do.progress = TRUE
-  )
+model_out <- BIOMOD_Modeling(
+  bm.format = formatted_data,
+  modeling.id = "first_sdm",
+  models = models_to_run,
+  CV.strategy = "random",
+  CV.nb.rep = 1,
+  CV.perc = 0.8,
+  OPT.strategy = "bigboss",
+  metric.eval = c("TSS", "AUCroc"),
+  var.import = 1,
+  nb.cpu = 1,
+  seed.val = 42,
+  do.progress = TRUE
 )
 
 saveRDS(model_out, "outputs/models/aedes_aegypti_biomod2_model.rds")
 
-evaluations <- biomod2::get_evaluations(model_out)
-readr::write_csv(as.data.frame(evaluations), "outputs/tables/model_evaluation.csv")
+# get_evaluations() and get_variables_importance() come from biomod2.
+model_evaluation <- get_evaluations(model_out)
+variable_importance <- get_variables_importance(model_out)
 
-variables <- biomod2::get_variables_importance(model_out)
-readr::write_csv(as.data.frame(variables), "outputs/tables/variable_importance.csv")
+write_csv(as.data.frame(model_evaluation), "outputs/tables/model_evaluation.csv")
+write_csv(as.data.frame(variable_importance), "outputs/tables/variable_importance.csv")
 
-message("Saved model object to: outputs/models/aedes_aegypti_biomod2_model.rds")
-message("Saved evaluation table to: outputs/tables/model_evaluation.csv")
-message("Saved variable importance table to: outputs/tables/variable_importance.csv")
+model_evaluation
 
 
-# =============================================================================
-# SECTION 6: Build ensemble models
-# =============================================================================
-
-message_step("Building ensemble models")
+################################################################################
+################################################################################
+############################### 8. BUILD ENSEMBLES #############################
+################################################################################
+################################################################################
 
 # Ensemble models combine predictions from the individual models.
 #
-# Here we build two simple ensemble examples:
-# - EMmean: average prediction across selected models
-# - EMwmean: weighted average, where better-performing models get more weight
+# EMmean  = mean prediction
+# EMwmean = weighted mean prediction
 #
-# We use metric.select = "all" for a beginner-friendly first run. In a more
-# formal analysis, you might select models above a TSS or AUC threshold.
-ensemble_out <- biomod2::BIOMOD_EnsembleModeling(
+# For this beginner workshop, we keep all models in the ensemble.
+
+ensemble_out <- BIOMOD_EnsembleModeling(
   bm.mod = model_out,
   models.chosen = "all",
   em.by = "all",
@@ -405,22 +360,20 @@ ensemble_out <- biomod2::BIOMOD_EnsembleModeling(
 
 saveRDS(ensemble_out, "outputs/models/aedes_aegypti_biomod2_ensemble.rds")
 
-ensemble_evaluations <- biomod2::get_evaluations(ensemble_out)
-readr::write_csv(as.data.frame(ensemble_evaluations), "outputs/tables/ensemble_evaluation.csv")
+ensemble_evaluation <- get_evaluations(ensemble_out)
+write_csv(as.data.frame(ensemble_evaluation), "outputs/tables/ensemble_evaluation.csv")
 
-message("Saved ensemble object to: outputs/models/aedes_aegypti_biomod2_ensemble.rds")
-message("Saved ensemble evaluation table to: outputs/tables/ensemble_evaluation.csv")
+ensemble_evaluation
 
 
-# =============================================================================
-# SECTION 7: Project and map suitability across Brazil
-# =============================================================================
+################################################################################
+################################################################################
+########################## 9. PROJECT MODELS ACROSS BRAZIL #####################
+################################################################################
+################################################################################
 
-message_step("Projecting suitability across Brazil")
-
-# biomod2::BIOMOD_Projection() applies the fitted model to every raster cell in
-# Brazil, creating a map of predicted environmental suitability.
-projection_out <- biomod2::BIOMOD_Projection(
+# BIOMOD_Projection() projects the individual models across all raster cells.
+projection_out <- BIOMOD_Projection(
   bm.mod = model_out,
   proj.name = "Brazil_current",
   new.env = predictors,
@@ -430,73 +383,64 @@ projection_out <- biomod2::BIOMOD_Projection(
   seed.val = 42
 )
 
-projection_raster_all <- biomod2::get_predictions(projection_out)
+prediction_layers <- get_predictions(projection_out)
 
-# biomod2 may return several projection layers for run/full-data models.
-# For this first workshop map, average them into one suitability layer.
-if (terra::nlyr(projection_raster_all) > 1) {
-  suitability <- terra::app(projection_raster_all, mean, na.rm = TRUE)
+# Biomod2 returns several prediction layers. For this first workshop map,
+# we average them into one simple suitability raster.
+if (nlyr(prediction_layers) > 1) {
+  suitability <- app(prediction_layers, mean, na.rm = TRUE)
 } else {
-  suitability <- projection_raster_all
+  suitability <- prediction_layers
 }
 
 names(suitability) <- "aedes_aegypti_suitability"
 
-terra::writeRaster(
+writeRaster(
   suitability,
   "outputs/maps/aedes_aegypti_brazil_suitability.tif",
   overwrite = TRUE
 )
 
-saveRDS(projection_out, "outputs/models/aedes_aegypti_biomod2_projection.rds")
-
-message("Saved suitability raster to: outputs/maps/aedes_aegypti_brazil_suitability.tif")
-
-message_step("Projecting ensemble suitability across Brazil")
-
-# biomod2::BIOMOD_EnsembleForecasting() projects the ensemble model across the
-# same environmental raster layers.
-ensemble_projection_out <- biomod2::BIOMOD_EnsembleForecasting(
+# BIOMOD_EnsembleForecasting() projects the ensemble model.
+ensemble_projection_out <- BIOMOD_EnsembleForecasting(
   bm.em = ensemble_out,
   bm.proj = projection_out,
   models.chosen = "all",
   nb.cpu = 1
 )
 
-ensemble_raster_all <- biomod2::get_predictions(ensemble_projection_out)
+ensemble_prediction_layers <- get_predictions(ensemble_projection_out)
 
-if (terra::nlyr(ensemble_raster_all) > 1) {
-  ensemble_suitability <- terra::app(ensemble_raster_all, mean, na.rm = TRUE)
+if (nlyr(ensemble_prediction_layers) > 1) {
+  ensemble_suitability <- app(ensemble_prediction_layers, mean, na.rm = TRUE)
 } else {
-  ensemble_suitability <- ensemble_raster_all
+  ensemble_suitability <- ensemble_prediction_layers
 }
 
 names(ensemble_suitability) <- "aedes_aegypti_ensemble_suitability"
 
-terra::writeRaster(
+writeRaster(
   ensemble_suitability,
   "outputs/maps/aedes_aegypti_brazil_ensemble_suitability.tif",
   overwrite = TRUE
 )
 
-saveRDS(ensemble_projection_out, "outputs/models/aedes_aegypti_biomod2_ensemble_projection.rds")
 
-message("Saved ensemble suitability raster to: outputs/maps/aedes_aegypti_brazil_ensemble_suitability.tif")
-
-message_step("Mapping predicted suitability")
+################################################################################
+################################################################################
+############################### 10. MAP PREDICTIONS ############################
+################################################################################
+################################################################################
 
 suitability_df <- as.data.frame(suitability, xy = TRUE, na.rm = TRUE)
 names(suitability_df)[3] <- "suitability"
 
-p_suitability <- ggplot2::ggplot() +
-  ggplot2::geom_raster(
-    data = suitability_df,
-    ggplot2::aes(x = x, y = y, fill = suitability)
-  ) +
-  ggplot2::geom_sf(data = brazil_boundary, fill = NA, color = "grey20", linewidth = 0.25) +
-  ggplot2::geom_point(
+p_suitability <- ggplot() +
+  geom_raster(data = suitability_df, aes(x = x, y = y, fill = suitability)) +
+  geom_sf(data = brazil_boundary, fill = NA, color = "grey20", linewidth = 0.25) +
+  geom_point(
     data = occurrences_workshop,
-    ggplot2::aes(x = decimalLongitude, y = decimalLatitude),
+    aes(x = decimalLongitude, y = decimalLatitude),
     color = "black",
     fill = "white",
     shape = 21,
@@ -504,27 +448,20 @@ p_suitability <- ggplot2::ggplot() +
     alpha = 0.45,
     stroke = 0.15
   ) +
-  ggplot2::scale_fill_viridis_c(
-    name = "Suitability",
-    option = "magma",
-    limits = c(0, 1000)
-  ) +
-  ggplot2::coord_sf(expand = FALSE) +
-  ggplot2::labs(
+  scale_fill_viridis_c(name = "Suitability", option = "magma", limits = c(0, 1000)) +
+  coord_sf(expand = FALSE) +
+  labs(
     title = "Predicted environmental suitability for Aedes aegypti",
-    subtitle = "Teaching model for Brazil using GBIF occurrences and bioclimatic predictors",
+    subtitle = "Average prediction from GLM, GBM, and Random Forest outputs",
     x = "Longitude",
     y = "Latitude",
-    caption = "Suitability is not dengue risk. Interpretation requires vector biology, surveillance context, and uncertainty checks."
+    caption = "Suitability is not dengue risk."
   ) +
-  ggplot2::theme_minimal(base_size = 12) +
-  ggplot2::theme(
-    plot.caption = ggplot2::element_text(color = "grey35", size = 8),
-    legend.position = "right"
-  )
+  theme_minimal(base_size = 12)
 
 print(p_suitability)
-ggplot2::ggsave(
+
+ggsave(
   "outputs/maps/aedes_aegypti_brazil_suitability.png",
   p_suitability,
   width = 8,
@@ -536,15 +473,12 @@ ggplot2::ggsave(
 ensemble_suitability_df <- as.data.frame(ensemble_suitability, xy = TRUE, na.rm = TRUE)
 names(ensemble_suitability_df)[3] <- "ensemble_suitability"
 
-p_ensemble_suitability <- ggplot2::ggplot() +
-  ggplot2::geom_raster(
-    data = ensemble_suitability_df,
-    ggplot2::aes(x = x, y = y, fill = ensemble_suitability)
-  ) +
-  ggplot2::geom_sf(data = brazil_boundary, fill = NA, color = "grey20", linewidth = 0.25) +
-  ggplot2::geom_point(
+p_ensemble <- ggplot() +
+  geom_raster(data = ensemble_suitability_df, aes(x = x, y = y, fill = ensemble_suitability)) +
+  geom_sf(data = brazil_boundary, fill = NA, color = "grey20", linewidth = 0.25) +
+  geom_point(
     data = occurrences_workshop,
-    ggplot2::aes(x = decimalLongitude, y = decimalLatitude),
+    aes(x = decimalLongitude, y = decimalLatitude),
     color = "black",
     fill = "white",
     shape = 21,
@@ -552,29 +486,22 @@ p_ensemble_suitability <- ggplot2::ggplot() +
     alpha = 0.45,
     stroke = 0.15
   ) +
-  ggplot2::scale_fill_viridis_c(
-    name = "Ensemble suitability",
-    option = "magma",
-    limits = c(0, 1000)
-  ) +
-  ggplot2::coord_sf(expand = FALSE) +
-  ggplot2::labs(
+  scale_fill_viridis_c(name = "Ensemble suitability", option = "magma", limits = c(0, 1000)) +
+  coord_sf(expand = FALSE) +
+  labs(
     title = "Ensemble prediction of environmental suitability for Aedes aegypti",
     subtitle = "Teaching ensemble combining GLM, GBM, and Random Forest models",
     x = "Longitude",
     y = "Latitude",
-    caption = "Suitability is not dengue risk. Ensemble models summarize model predictions but do not remove data bias."
+    caption = "Suitability is not dengue risk."
   ) +
-  ggplot2::theme_minimal(base_size = 12) +
-  ggplot2::theme(
-    plot.caption = ggplot2::element_text(color = "grey35", size = 8),
-    legend.position = "right"
-  )
+  theme_minimal(base_size = 12)
 
-print(p_ensemble_suitability)
-ggplot2::ggsave(
+print(p_ensemble)
+
+ggsave(
   "outputs/maps/aedes_aegypti_brazil_ensemble_suitability.png",
-  p_ensemble_suitability,
+  p_ensemble,
   width = 8,
   height = 7,
   dpi = 220,
@@ -582,31 +509,69 @@ ggplot2::ggsave(
 )
 
 
-# =============================================================================
-# SECTION 8: Interpret the model output
-# =============================================================================
+################################################################################
+################################################################################
+############################### 11. INTERPRETATION #############################
+################################################################################
+################################################################################
 
-message_step("Model evaluation")
+model_evaluation
+ensemble_evaluation
 
-evaluations <- readr::read_csv("outputs/tables/model_evaluation.csv", show_col_types = FALSE)
-print(evaluations)
+# Discussion questions:
+# 1. Where does the model predict higher suitability?
+# 2. Are these areas biologically plausible for Aedes aegypti?
+# 3. What could be caused by sampling bias rather than true suitability?
+# 4. Why is this map not the same as a dengue risk map?
+# 5. What additional data would public health teams need before acting?
 
-message_step("Ensemble evaluation")
 
-ensemble_evaluations <- readr::read_csv("outputs/tables/ensemble_evaluation.csv", show_col_types = FALSE)
-print(ensemble_evaluations)
+################################################################################
+################################################################################
+########################### 12. OPTIONAL: MODEL SETTINGS #######################
+################################################################################
+################################################################################
 
-message_step("Interpretation prompts")
-
-cat("
-Discuss with a neighbor:
-
-1. Where does the model predict higher suitability?
-2. Are these areas biologically plausible for Aedes aegypti?
-3. What could be caused by sampling bias rather than true suitability?
-4. Why is this map not the same as a dengue risk map?
-5. What additional data would public health teams need before acting?
-
-")
-
-message("Workshop script complete.")
+# This section is optional. You do not need it for the live workshop.
+#
+# Biomod2 can use default settings, or you can define your own settings for
+# individual models. The function for this is bm_ModelingOptions().
+#
+# Example only:
+#
+# custom_model_values <- list(
+#   GLM.binary.stats.glm = list(
+#     "_allData_allRun" = list(control = list(maxit = 100))
+#   ),
+#   GBM.binary.gbm.gbm = list(
+#     "_allData_allRun" = list(
+#       n.trees = 1000,
+#       interaction.depth = 3,
+#       shrinkage = 0.005,
+#       n.minobsinnode = 5,
+#       bag.fraction = 0.5,
+#       cv.folds = 3
+#     )
+#   ),
+#   RF.binary.randomForest.randomForest = list(
+#     "_allData_allRun" = list(
+#       ntree = 300,
+#       mtry = 2,
+#       nodesize = 5
+#     )
+#   )
+# )
+#
+# custom_options <- bm_ModelingOptions(
+#   data.type = "binary",
+#   models = models_to_run,
+#   strategy = "user.defined",
+#   user.val = custom_model_values,
+#   user.base = "bigboss",
+#   bm.format = formatted_data
+# )
+#
+# To use these options in BIOMOD_Modeling(), you would add:
+#
+# OPT.strategy = "user.defined",
+# OPT.user = custom_options

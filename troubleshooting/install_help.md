@@ -30,7 +30,7 @@ If R says binary packages are not available, install the latest R version from C
 
 ## If `biomod2` Fails
 
-Try installing the core modeling helpers first:
+Try installing the core modeling packages first:
 
 ```r
 install.packages(c("randomForest", "gbm", "maxnet"))

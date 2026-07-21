@@ -208,7 +208,7 @@ Stay in the same script:
 scripts/workshop_aedes_aegypti_brazil_sdm.R
 ```
 
-Find **Section 5: Format data and run a first biomod2 model**. Run it slowly.
+Find **Section 6: Prepare data for biomod2** and continue through the modeling sections slowly.
 
 The model needs:
 
@@ -239,19 +239,12 @@ We run three example algorithms:
 - GBM: Generalized Boosting Model, also called boosted regression trees
 - RF: Random Forest
 
-The script also includes an options block using `biomod2::bm_ModelingOptions()`. We keep the live run on biomod2's `bigboss` defaults, but the script shows where you would change individual algorithm parameters later.
+For the live workshop, we keep the models on biomod2's `bigboss` default settings. The script has an optional final section showing where model settings can be changed later.
 
 ```r
 models_to_run <- c("GLM", "GBM", "RF")
 
-modeling_options <- biomod2::bm_ModelingOptions(
-  data.type = "binary",
-  models = models_to_run,
-  strategy = "bigboss",
-  bm.format = formatted_data
-)
-
-model_out <- biomod2::BIOMOD_Modeling(
+model_out <- BIOMOD_Modeling(
   bm.format = formatted_data,
   modeling.id = "first_sdm",
   models = models_to_run,
@@ -286,7 +279,7 @@ In the workshop script, we build two simple ensemble examples:
 The key function is:
 
 ```r
-ensemble_out <- biomod2::BIOMOD_EnsembleModeling(
+ensemble_out <- BIOMOD_EnsembleModeling(
   bm.mod = model_out,
   models.chosen = "all",
   em.by = "all",
@@ -302,14 +295,14 @@ ensemble_out <- biomod2::BIOMOD_EnsembleModeling(
 After fitting the individual and ensemble models, we predict suitability across the whole study area:
 
 ```r
-projection_out <- biomod2::BIOMOD_Projection(
+projection_out <- BIOMOD_Projection(
   bm.mod = model_out,
   proj.name = "Brazil_current",
   new.env = predictors,
   models.chosen = "all"
 )
 
-ensemble_projection_out <- biomod2::BIOMOD_EnsembleForecasting(
+ensemble_projection_out <- BIOMOD_EnsembleForecasting(
   bm.em = ensemble_out,
   bm.proj = projection_out,
   models.chosen = "all"
@@ -331,7 +324,7 @@ Stay in the same script:
 scripts/workshop_aedes_aegypti_brazil_sdm.R
 ```
 
-Find **Section 7: Project and map suitability across Brazil** and **Section 8: Interpret the model output**.
+Find **Section 9: Project models across Brazil**, **Section 10: Map predictions**, and **Section 11: Interpretation**.
 
 This creates:
 

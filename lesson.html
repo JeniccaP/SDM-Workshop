@@ -158,7 +158,7 @@ occurrences_raw &lt;- gbif_download$data
 <p>Stay in the same script:</p>
 <pre><code class="language-text">scripts/workshop_aedes_aegypti_brazil_sdm.R
 </code></pre>
-<p>Find <strong>Section 5: Format data and run a first biomod2 model</strong>. Run it slowly.</p>
+<p>Find <strong>Section 6: Prepare data for biomod2</strong> and continue through the modeling sections slowly.</p>
 <p>The model needs:</p>
 <pre><code class="language-r">species_xy &lt;- as.matrix(occurrences[, c(&quot;decimalLongitude&quot;, &quot;decimalLatitude&quot;)])
 species_presence &lt;- rep(1, nrow(occurrences))
@@ -182,17 +182,10 @@ species_presence &lt;- rep(1, nrow(occurrences))
 <li>GBM: Generalized Boosting Model, also called boosted regression trees</li>
 <li>RF: Random Forest</li>
 </ul>
-<p>The script also includes an options block using <code>biomod2::bm_ModelingOptions()</code>. We keep the live run on biomod2's <code>bigboss</code> defaults, but the script shows where you would change individual algorithm parameters later.</p>
+<p>For the live workshop, we keep the models on biomod2's <code>bigboss</code> default settings. The script has an optional final section showing where model settings can be changed later.</p>
 <pre><code class="language-r">models_to_run &lt;- c(&quot;GLM&quot;, &quot;GBM&quot;, &quot;RF&quot;)
 
-modeling_options &lt;- biomod2::bm_ModelingOptions(
-  data.type = &quot;binary&quot;,
-  models = models_to_run,
-  strategy = &quot;bigboss&quot;,
-  bm.format = formatted_data
-)
-
-model_out &lt;- biomod2::BIOMOD_Modeling(
+model_out &lt;- BIOMOD_Modeling(
   bm.format = formatted_data,
   modeling.id = &quot;first_sdm&quot;,
   models = models_to_run,
@@ -218,7 +211,7 @@ model_out &lt;- biomod2::BIOMOD_Modeling(
 <li><code>EMwmean</code>: weighted average, where better-performing models get more weight</li>
 </ul>
 <p>The key function is:</p>
-<pre><code class="language-r">ensemble_out &lt;- biomod2::BIOMOD_EnsembleModeling(
+<pre><code class="language-r">ensemble_out &lt;- BIOMOD_EnsembleModeling(
   bm.mod = model_out,
   models.chosen = &quot;all&quot;,
   em.by = &quot;all&quot;,
@@ -230,14 +223,14 @@ model_out &lt;- biomod2::BIOMOD_Modeling(
 </code></pre>
 <h1>Project Suitability Across Brazil</h1>
 <p>After fitting the individual and ensemble models, we predict suitability across the whole study area:</p>
-<pre><code class="language-r">projection_out &lt;- biomod2::BIOMOD_Projection(
+<pre><code class="language-r">projection_out &lt;- BIOMOD_Projection(
   bm.mod = model_out,
   proj.name = &quot;Brazil_current&quot;,
   new.env = predictors,
   models.chosen = &quot;all&quot;
 )
 
-ensemble_projection_out &lt;- biomod2::BIOMOD_EnsembleForecasting(
+ensemble_projection_out &lt;- BIOMOD_EnsembleForecasting(
   bm.em = ensemble_out,
   bm.proj = projection_out,
   models.chosen = &quot;all&quot;
@@ -251,7 +244,7 @@ outputs/maps/aedes_aegypti_brazil_ensemble_suitability.tif
 <p>Stay in the same script:</p>
 <pre><code class="language-text">scripts/workshop_aedes_aegypti_brazil_sdm.R
 </code></pre>
-<p>Find <strong>Section 7: Project and map suitability across Brazil</strong> and <strong>Section 8: Interpret the model output</strong>.</p>
+<p>Find <strong>Section 9: Project models across Brazil</strong>, <strong>Section 10: Map predictions</strong>, and <strong>Section 11: Interpretation</strong>.</p>
 <p>This creates:</p>
 <pre><code class="language-text">outputs/maps/aedes_aegypti_brazil_suitability.png
 outputs/maps/aedes_aegypti_brazil_ensemble_suitability.png

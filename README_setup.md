@@ -2,7 +2,7 @@
 
 Welcome! In this workshop we will use R to build a first species distribution model for the dengue vector *Aedes aegypti* in Brazil.
 
-The workshop is beginner-friendly, but it does rely on several R packages. Please try to complete this setup before the session. If something fails, do not worry: we will have cached data and helpers available during the workshop.
+The workshop is beginner-friendly, but it does rely on several R packages. Please try to complete this setup before the session. If something fails, do not worry: we will have cached data available during the workshop.
 
 ## 1. Install R
 
@@ -124,7 +124,7 @@ During the live workshop, we will mostly use one script and run it section by se
 scripts/workshop_aedes_aegypti_brazil_sdm.R
 ```
 
-The other scripts are helpers, setup checks, cached-data builders, or optional exports.
+The other scripts are setup checks, cached-data builders, or optional exports.
 
 Outputs will be saved into:
 

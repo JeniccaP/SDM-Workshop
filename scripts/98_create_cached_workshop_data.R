@@ -3,9 +3,7 @@
 # Participants do not need to run this script. It downloads public data and
 # creates the small files used by the live workshop.
 
-source("scripts/99_helpers.R")
-
-check_required_packages(c(
+required_packages <- c(
   "dplyr",
   "readr",
   "rgbif",
@@ -13,7 +11,20 @@ check_required_packages(c(
   "terra",
   "rnaturalearth",
   "rnaturalearthdata"
-))
+)
+
+missing_packages <- required_packages[
+  !vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)
+]
+
+if (length(missing_packages) > 0) {
+  stop(
+    "These packages are missing: ",
+    paste(missing_packages, collapse = ", "),
+    "\nPlease run scripts/00_install_packages.R first.",
+    call. = FALSE
+  )
+}
 
 library(dplyr)
 library(readr)
@@ -23,17 +34,17 @@ library(terra)
 library(rnaturalearth)
 library(rnaturalearthdata)
 
-safe_dir_create("data/occurrences")
-safe_dir_create("data/environment")
-safe_dir_create("data/boundaries")
+dir.create("data/occurrences", recursive = TRUE, showWarnings = FALSE)
+dir.create("data/environment", recursive = TRUE, showWarnings = FALSE)
+dir.create("data/boundaries", recursive = TRUE, showWarnings = FALSE)
 
-message_step("Create Brazil boundary")
+cat("\nCreate Brazil boundary\n")
 
 brazil <- ne_countries(country = "Brazil", scale = "medium", returnclass = "sf")
 brazil <- st_make_valid(brazil)
 st_write(brazil, "data/boundaries/brazil_boundary.gpkg", delete_dsn = TRUE, quiet = TRUE)
 
-message_step("Download and cache GBIF occurrence records")
+cat("\nDownload and cache GBIF occurrence records\n")
 
 target_species <- "Aedes aegypti"
 target_country <- "BR"
@@ -54,15 +65,26 @@ gbif_download <- occ_search(
 occurrences_raw <- gbif_download$data
 write_csv(occurrences_raw, "data/occurrences/aedes_aegypti_brazil_gbif_raw.csv")
 
-occurrences_clean <- clean_occurrence_table(occurrences_raw)
-occurrences_backup <- sample_occurrences(occurrences_clean, max_points = 1200, seed = 42)
+occurrences_clean <- occurrences_raw %>%
+  filter(!is.na(decimalLongitude), !is.na(decimalLatitude)) %>%
+  filter(decimalLongitude >= -75, decimalLongitude <= -30) %>%
+  filter(decimalLatitude >= -35, decimalLatitude <= 6) %>%
+  filter(!(decimalLongitude == 0 & decimalLatitude == 0)) %>%
+  distinct(decimalLongitude, decimalLatitude, .keep_all = TRUE)
+
+set.seed(42)
+if (nrow(occurrences_clean) > 1200) {
+  occurrences_backup <- slice_sample(occurrences_clean, n = 1200)
+} else {
+  occurrences_backup <- occurrences_clean
+}
 
 write_csv(occurrences_backup, "data/occurrences/aedes_aegypti_brazil_clean_backup.csv")
 write_csv(occurrences_backup, "data/occurrences/aedes_aegypti_brazil_clean_workshop.csv")
 
 message("Cached ", nrow(occurrences_backup), " cleaned occurrence records.")
 
-message_step("Download WorldClim bioclimatic predictors")
+cat("\nDownload WorldClim bioclimatic predictors\n")
 
 worldclim_url <- "https://geodata.ucdavis.edu/climate/worldclim/2_1/base/wc2.1_10m_bio.zip"
 zip_file <- file.path(tempdir(), "wc2.1_10m_bio.zip")
@@ -111,6 +133,6 @@ writeRaster(
 
 message("Cached environmental predictors.")
 
-message_step("Done")
+cat("\nDone\n")
 
 message("Cached files created in data/occurrences, data/environment, and data/boundaries.")
