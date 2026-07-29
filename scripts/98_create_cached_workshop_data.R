@@ -117,8 +117,13 @@ names(predictors) <- c(
   "bio15_precipitation_seasonality"
 )
 
-# WorldClim temperature variables are stored as scaled integers.
-predictors[["bio01_annual_mean_temperature"]] <- predictors[["bio01_annual_mean_temperature"]] / 10
+# WorldClim v2.1 bioclimatic variables are provided in interpretable units.
+# bio01 is annual mean temperature in degrees Celsius, so we keep it unchanged.
+#
+# bio04 is temperature seasonality. It is the standard deviation of monthly
+# temperature values multiplied by 100 in the bioclim convention. Dividing by
+# 100 gives a more intuitive "standard deviation in degrees Celsius" scale for
+# teaching and plotting.
 predictors[["bio04_temperature_seasonality"]] <- predictors[["bio04_temperature_seasonality"]] / 100
 
 brazil_vect <- vect(st_transform(brazil, crs(predictors)))
