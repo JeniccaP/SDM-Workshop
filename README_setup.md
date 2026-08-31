@@ -43,54 +43,40 @@ SDM_dengue_Brazil_workshop.Rproj
 
 This opens RStudio in the correct folder. This means you should not need to use `setwd()`.
 
-## 5. Install The R Packages
+## 5. Run The Pre-workshop Setup Script
 
 In RStudio, open:
 
 ```text
-scripts/00_install_packages.R
+scripts/00_student_setup_before_workshop.R
 ```
 
 Run the whole script.
 
-The most important packages are:
+This one script will:
+
+- show which R packages are needed and what each one is used for
+- install any missing required packages from CRAN
+- check that the workshop data files are present in the `data/` folder
+- create the `outputs/` folders used during the practical
+
+If the script says that data files are missing, please re-download the full workshop folder from GitHub. The cached data are included so we do not depend on large live downloads during the session.
+
+Optional packages are listed in the script but are not installed automatically. To install them too, change:
 
 ```r
-install.packages(c(
-  "biomod2",
-  "gbm",
-  "dplyr",
-  "ggplot2",
-  "readr",
-  "rgbif",
-  "sf",
-  "terra",
-  "viridis",
-  "rnaturalearth",
-  "rnaturalearthdata",
-  "randomForest"
-))
+install_optional_packages <- FALSE
 ```
 
-Optional packages:
+to:
 
 ```r
-install.packages(c("CoordinateCleaner", "geodata"))
+install_optional_packages <- TRUE
 ```
 
-The workshop scripts do not require these optional packages, but they are useful for future SDM work.
+and run the script again.
 
-## 6. Check Your Setup
-
-Open and run:
-
-```text
-scripts/01_setup_check.R
-```
-
-If everything is working, you should see a message saying that the setup check passed.
-
-## 7. Common Installation Problems
+## 6. Common Installation Problems
 
 ### Windows
 
@@ -104,7 +90,7 @@ Some spatial packages may ask for command line tools. If prompted, install them 
 
 The workshop includes cached occurrence data and environmental layers. If the live GBIF download fails, you can still complete the model.
 
-## 8. During The Workshop
+## 7. During The Workshop
 
 The participant-facing lesson is:
 
